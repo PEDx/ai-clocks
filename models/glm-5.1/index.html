@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>机械时钟</title>
+<style>
+  * { margin: 0; padding: 0; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #1a1a2e;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="clock" width="600" height="600"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const cx = W / 2, cy = H / 2, R = 250;
+
+function drawClock() {
+  ctx.clearRect(0, 0, W, H);
+  const now = new Date();
+  const h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds(), ms = now.getMilliseconds();
+
+  // 外圈阴影
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 30;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 20, 0, Math.PI * 2);
+  ctx.fillStyle = '#2c2c3a';
+  ctx.fill();
+  ctx.restore();
+
+  // 外圈金属边框
+  const rimGrad = ctx.createRadialGradient(cx, cy, R, cx, cy, R + 20);
+  rimGrad.addColorStop(0, '#8a7d6b');
+  rimGrad.addColorStop(0.3, '#c9b896');
+  rimGrad.addColorStop(0.5, '#f5e6c8');
+  rimGrad.addColorStop(0.7, '#c9b896');
+  rimGrad.addColorStop(1, '#8a7d6b');
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 20, 0, Math.PI * 2);
+  ctx.fillStyle = rimGrad;
+  ctx.fill();
+
+  // 内圈金属边框
+  const innerRimGrad = ctx.createRadialGradient(cx, cy, R - 8, cx, cy, R);
+  innerRimGrad.addColorStop(0, '#a89880');
+  innerRimGrad.addColorStop(0.5, '#d4c5a9');
+  innerRimGrad.addColorStop(1, '#a89880');
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = innerRimGrad;
+  ctx.fill();
+
+  // 表盘
+  const dialGrad = ctx.createRadialGradient(cx - 40, cy - 40, 0, cx, cy, R - 8);
+  dialGrad.addColorStop(0, '#faf6eb');
+  dialGrad.addColorStop(0.8, '#f0e8d0');
+  dialGrad.addColorStop(1, '#e0d5b8');
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 8, 0, Math.PI * 2);
+  ctx.fillStyle = dialGrad;
+  ctx.fill();
+
+  // 刻度
+  for (let i = 0; i < 60; i++) {
+    const angle = (i * 6 - 90) * Math.PI / 180;
+    const isHour = i % 5 === 0;
+    const outerR = R - 14;
+    const innerR = isHour ? R - 42 : R - 26;
+    const lw = isHour ? 3 : 1;
+
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.strokeStyle = isHour ? '#3a3020' : '#8a7d6b';
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // 罗马数字
+  const romans = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+  ctx.font = 'bold 26px Georgia, serif';
+  ctx.fillStyle = '#3a3020';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  romans.forEach((num, i) => {
+    const angle = (i * 30 - 90) * Math.PI / 180;
+    const numR = R - 58;
+    const x = cx + Math.cos(angle) * numR;
+    const y = cy + Math.sin(angle) * numR;
+    ctx.fillText(num, x, y);
+  });
+
+  // 品牌文字
+  ctx.font = '12px Georgia, serif';
+  ctx.fillStyle = '#8a7d6b';
+  ctx.fillText('MECHANICAL', cx, cy - 70);
+  ctx.font = '10px Georgia, serif';
+  ctx.fillText('SWISS MADE', cx, cy + 80);
+
+  // 日期窗口
+  const dateStr = now.getDate().toString().padStart(2, '0');
+  const dateX = cx + 80, dateY = cy;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#a89880';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(dateX - 16, dateY - 10, 32, 20, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = 'bold 13px Georgia, serif';
+  ctx.fillStyle = '#3a3020';
+  ctx.fillText(dateStr, dateX, dateY + 1);
+
+  // 小秒盘（6点位）
+  const subCx = cx, subCy = cy + 90, subR = 40;
+  ctx.beginPath();
+  ctx.arc(subCx, subCy, subR, 0, Math.PI * 2);
+  ctx.fillStyle = '#e8e0cc';
+  ctx.fill();
+  ctx.strokeStyle = '#a89880';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  for (let i = 0; i < 60; i++) {
+    const angle = (i * 6 - 90) * Math.PI / 180;
+    const isM = i % 5 === 0;
+    const o = subR - 2, inn = isM ? subR - 10 : subR - 5;
+    ctx.beginPath();
+    ctx.moveTo(subCx + Math.cos(angle) * inn, subCy + Math.sin(angle) * inn);
+    ctx.lineTo(subCx + Math.cos(angle) * o, subCy + Math.sin(angle) * o);
+    ctx.strokeStyle = isM ? '#3a3020' : '#8a7d6b';
+    ctx.lineWidth = isM ? 1.5 : 0.5;
+    ctx.stroke();
+  }
+
+  const subS = s + ms / 1000;
+  const subSAngle = (subS * 6 - 90) * Math.PI / 180;
+  drawHand(subCx, subCy, subSAngle, subR - 14, 1, '#c0392b', false);
+
+  // 时针
+  const hAngle = ((h + m / 60 + s / 3600) * 30 - 90) * Math.PI / 180;
+  drawHand(cx, cy, hAngle, 130, 7, '#2c2416', true);
+
+  // 分针
+  const mAngle = ((m + s / 60) * 6 - 90) * Math.PI / 180;
+  drawHand(cx, cy, mAngle, 175, 4.5, '#2c2416', true);
+
+  // 秒针
+  const sAngle = (subS * 6 - 90) * Math.PI / 180;
+  // 秒针尾部
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(sAngle) * 35, cy - Math.sin(sAngle) * 35);
+  ctx.lineTo(cx + Math.cos(sAngle) * 190, cy + Math.sin(sAngle) * 190);
+  ctx.strokeStyle = '#c0392b';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // 中心圆钉
+  const capGrad = ctx.createRadialGradient(cx - 2, cy - 2, 0, cx, cy, 10);
+  capGrad.addColorStop(0, '#f5e6c8');
+  capGrad.addColorStop(0.5, '#c9b896');
+  capGrad.addColorStop(1, '#8a7d6b');
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fillStyle = capGrad;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#c0392b';
+  ctx.fill();
+
+  // 玻璃反光
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 10, 0, Math.PI * 2);
+  ctx.clip();
+  const glassGrad = ctx.createLinearGradient(cx - R, cy - R, cx + R * 0.3, cy + R * 0.3);
+  glassGrad.addColorStop(0, 'rgba(255,255,255,0.15)');
+  glassGrad.addColorStop(0.4, 'rgba(255,255,255,0.02)');
+  glassGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = glassGrad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  requestAnimationFrame(drawClock);
+}
+
+function drawHand(px, py, angle, length, width, color, hasShadow) {
+  ctx.save();
+  if (hasShadow) {
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+  }
+  // 指针主体 - 菱形造型
+  ctx.beginPath();
+  ctx.translate(px, py);
+  ctx.rotate(angle);
+  ctx.moveTo(-15, 0);
+  ctx.lineTo(-5, -width / 2);
+  ctx.lineTo(length, -1);
+  ctx.lineTo(length + 5, 0);
+  ctx.lineTo(length, 1);
+  ctx.lineTo(-5, width / 2);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+drawClock();
+</script>
+</body>
+</html>

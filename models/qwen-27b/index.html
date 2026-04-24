@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机械时钟</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        }
+        canvas {
+            border-radius: 50%;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="clock" width="500" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('clock');
+        const ctx = canvas.getContext('2d');
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 200;
+
+        function drawClock() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 绘制时钟外框
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius + 10, 0, 2 * Math.PI);
+            ctx.fillStyle = '#2c3e50';
+            ctx.fill();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#34495e';
+            ctx.stroke();
+
+            // 绘制内圈
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fill();
+
+            // 绘制刻度
+            for (let i = 0; i < 12; i++) {
+                const angle = (i * Math.PI) / 6 - Math.PI / 2;
+                const isMain = i % 3 === 0;
+
+                const x1 = centerX + Math.cos(angle) * radius;
+                const y1 = centerY + Math.sin(angle) * radius;
+                const x2 = centerX + Math.cos(angle) * (radius - (isMain ? 25 : 15));
+                const y2 = centerY + Math.sin(angle) * (radius - (isMain ? 25 : 15));
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.lineWidth = isMain ? 4 : 2;
+                ctx.strokeStyle = '#2c3e50';
+                ctx.stroke();
+
+                // 绘制数字
+                if (isMain) {
+                    const numX = centerX + Math.cos(angle) * (radius - 40);
+                    const numY = centerY + Math.sin(angle) * (radius - 40);
+                    ctx.font = 'bold 24px Arial';
+                    ctx.fillStyle = '#2c3e50';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText((i % 12) + 1, numX, numY);
+                }
+            }
+
+            // 获取当前时间
+            const now = new Date();
+            const hours = now.getHours() % 12;
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+            const milliseconds = now.getMilliseconds();
+
+            // 计算角度（带平滑动画）
+            const secondAngle = ((seconds + milliseconds / 1000) * Math.PI * 2 / 60) - Math.PI / 2;
+            const minuteAngle = ((minutes + seconds / 60) * Math.PI * 2 / 60) - Math.PI / 2;
+            const hourAngle = ((hours + minutes / 60) * Math.PI * 2 / 12) - Math.PI / 2;
+
+            // 绘制时针
+            drawHand(hourAngle, 60, 6, '#2c3e50');
+
+            // 绘制分针
+            drawHand(minuteAngle, 90, 4, '#34495e');
+
+            // 绘制秒针
+            drawHand(secondAngle, 100, 2, '#e74c3c');
+
+            // 绘制中心点
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = '#2c3e50';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fill();
+
+            requestAnimationFrame(drawClock);
+        }
+
+        function drawHand(angle, length, width, color) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            // 绘制指针
+            ctx.beginPath();
+            ctx.rect(0, -width / 2, length, width);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // 指针尖端装饰
+            if (width === 2) {
+                ctx.beginPath();
+                ctx.ellipse(length + 8, 0, 10, 3, 0, 0, 2 * Math.PI);
+                ctx.fillStyle = color;
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        drawClock();
+    </script>
+</body>
+</html>

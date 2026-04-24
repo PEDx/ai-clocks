@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mechanical Clock Gallery</title>
+  <style>
+    :root {
+      --bg: #FAF9F7;
+      --surface: #ffffff;
+      --text: #1A1612;
+      --text-secondary: #6B6560;
+      --muted: #9C9590;
+      --line: #E8E4DF;
+      --accent: #D97757;
+      --accent-soft: rgba(217, 119, 87, 0.08);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      color: var(--text);
+      font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+    }
+
+    .page {
+      width: min(1420px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 48px 0 180px;
+    }
+
+    .hero {
+      margin-bottom: 32px;
+      padding: 28px 32px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .timebar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .time-label {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .time-value {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    .timezone {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .time-meta {
+      display: grid;
+      justify-items: end;
+      gap: 10px;
+    }
+
+    .repo-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1;
+      text-decoration: none;
+      background: var(--surface);
+      transition: border-color 150ms ease, color 150ms ease;
+    }
+
+    .repo-link:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .prompt-box {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 20;
+      display: grid;
+      gap: 12px;
+      width: min(720px, calc(100vw - 48px));
+      padding: 16px 20px 14px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      transform: translateX(-50%);
+    }
+
+    .prompt-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-height: 40px;
+    }
+
+    .prompt-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      border-radius: 8px;
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .prompt-text {
+      flex: 1 1 auto;
+      margin: 3px 0 0;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .prompt-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .prompt-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      transition: background 150ms ease, color 150ms ease;
+    }
+
+    .tool-button:hover {
+      background: rgba(0, 0, 0, 0.04);
+      color: var(--text-secondary);
+    }
+
+    .prompt-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .model-select {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      background: transparent;
+      white-space: nowrap;
+      transition: background 150ms ease;
+    }
+
+    .model-select:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .send-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--text);
+      transition: opacity 150ms ease;
+    }
+
+    .send-button:hover {
+      opacity: 0.85;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      transition: box-shadow 200ms ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      height: 32px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      background: var(--surface);
+      transition: border-color 150ms ease, color 150ms ease;
+    }
+
+    .card-link:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .card-link-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      padding: 12px;
+    }
+
+    .preview-frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .page {
+        width: min(100% - 32px, 1200px);
+        padding: 24px 0 180px;
+      }
+
+      .hero {
+        padding: 20px;
+      }
+
+      .timebar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .timezone {
+        text-align: left;
+        white-space: normal;
+      }
+
+      .time-meta {
+        justify-items: start;
+      }
+
+      .card-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .prompt-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .prompt-meta {
+        margin-left: 0;
+      }
+
+      .prompt-box {
+        bottom: 16px;
+        width: min(calc(100vw - 32px), 720px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="timebar">
+        <div>
+          <p class="time-label">Current Time</p>
+          <p class="time-value" id="timeValue">--:--:--</p>
+        </div>
+        <div class="time-meta">
+          <p class="timezone" id="timezoneValue">Timezone: --</p>
+          <a class="repo-link" href="https://github.com/PEDx/ai-clocks" target="_blank" rel="noreferrer">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.1 3.3 9.43 7.88 10.96.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.55-3.88-1.55-.52-1.34-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.19 1.75 1.19 1.02 1.75 2.67 1.25 3.32.95.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.25.45-2.27 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a10.9 10.9 0 0 1 5.78 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.24 2.75.12 3.04.74.81 1.18 1.83 1.18 3.08 0 4.41-2.68 5.39-5.24 5.68.41.36.78 1.08.78 2.18 0 1.57-.01 2.84-.01 3.22 0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.66 18.35.5 12 .5z"></path>
+            </svg>
+            <span>GitHub Repo</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" id="grid" aria-label="模型时钟预览列表"></section>
+  </main>
+
+  <div class="prompt-box" aria-label="常见 AI 模型输入">
+    <div class="prompt-main">
+      <div class="prompt-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+        </svg>
+      </div>
+      <div class="prompt-text">帮我用 cavans 画一个机械时钟，直接生成一个 html 文件我可以直接在浏览器打开</div>
+    </div>
+    <div class="prompt-toolbar">
+      <div class="prompt-actions" aria-hidden="true">
+        <div class="tool-button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+        </div>
+        <div class="tool-button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 12h8"></path>
+            <path d="M12 8v8"></path>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="prompt-meta">
+        <div class="model-select">
+          <span>Claude Sonnet 4</span>
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 7.5l5 5 5-5"></path>
+          </svg>
+        </div>
+        <div class="send-button" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path>
+            <path d="M19 12l-7-7-7 7"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const models = [
+      { name: "Claude Opus 4.6", path: "./models/claude-opus-4.6/index.html" },
+      { name: "Codex 5.4", path: "./models/codex-5.4/index.html" },
+      { name: "GLM 5.1", path: "./models/glm-5.1/index.html" },
+      { name: "DeepSeek V4 Pro", path: "./models/deepseek-v4-pro/index.html" },
+      { name: "Kimi 2.6", path: "./models/kimi-2.6/index.html" },
+      { name: "MiniMax 2.7", path: "./models/minimax-2.7/index.html" },
+      { name: "Qwen 122B", path: "./models/qwen-122b/index.html" },
+      { name: "Qwen 27B", path: "./models/qwen-27b/index.html" }
+    ];
+
+    const grid = document.getElementById("grid");
+    const timeValue = document.getElementById("timeValue");
+    const timezoneValue = document.getElementById("timezoneValue");
+
+    function updateTime() {
+      const now = new Date();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown";
+      const timeText = new Intl.DateTimeFormat("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      }).format(now);
+
+      timeValue.textContent = timeText;
+      timezoneValue.textContent = `Timezone: ${timezone}`;
+    }
+    updateTime();
+    window.setInterval(updateTime, 1000);
+
+    models.forEach((model) => {
+      const card = document.createElement("article");
+      card.className = "card";
+
+      card.innerHTML = `
+        <div class="card-head">
+          <div>
+            <h2 class="card-title">${model.name}</h2>
+          </div>
+          <a class="card-link" href="${model.path}" target="_blank" rel="noreferrer">
+            <span>单独打开</span>
+            <span class="card-link-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 17L17 7"></path>
+                <path d="M9 7h8v8"></path>
+              </svg>
+            </span>
+          </a>
+        </div>
+        <div class="preview">
+          <div class="preview-frame">
+            <iframe
+              src="${model.path}"
+              title="${model.name} mechanical clock preview"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            ></iframe>
+          </div>
+        </div>
+      `;
+
+      grid.appendChild(card);
+    });
+  </script>
+</body>
+</html>

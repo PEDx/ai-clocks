@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机械时钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Georgia', serif;
+  }
+  .container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .title {
+    color: #c9a96e;
+    font-size: 28px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px rgba(201, 169, 110, 0.5);
+  }
+  canvas {
+    border-radius: 50%;
+    box-shadow:
+      0 0 60px rgba(201, 169, 110, 0.3),
+      0 0 120px rgba(201, 169, 110, 0.1),
+      inset 0 0 60px rgba(0, 0, 0, 0.5);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <canvas id="clock" width="500" height="500"></canvas>
+</div>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const cx = W / 2;
+const cy = H / 2;
+const R = Math.min(W, H) / 2 - 10;
+
+function drawGear(x, y, outerR, innerR, teeth, angle, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+
+  const step = Math.PI * 2 / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a1 = i * step - step * 0.35;
+    const a2 = i * step + step * 0.35;
+    // outer tip
+    ctx.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+    ctx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+    // inner valley
+    const mid = i * step;
+    ctx.lineTo(Math.cos(mid + step * 0.2) * innerR, Math.sin(mid + step * 0.2) * innerR);
+    ctx.lineTo(Math.cos(mid + step * 0.8) * innerR, Math.sin(mid + step * 0.8) * innerR);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // center hole
+  ctx.beginPath();
+  ctx.arc(0, 0, innerR * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.stroke();
+
+  // spokes
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * innerR * 0.25, Math.sin(a) * innerR * 0.25);
+    ctx.lineTo(Math.cos(a) * innerR * 0.9, Math.sin(a) * innerR * 0.9);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawClock() {
+  ctx.clearRect(0, 0, W, H);
+
+  const now = new Date();
+  const h = now.getHours() % 12;
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ms = now.getMilliseconds();
+
+  const sAngle = (s + ms / 1000) * Math.PI * 2 / 60;
+  const mAngle = (m + s / 60) * Math.PI * 2 / 60;
+  const hAngle = (h + m / 60) * Math.PI * 2 / 12;
+
+  // === background gears ===
+  const gearTime = now.getTime() / 1000;
+
+  // large gear top-left
+  drawGear(cx - 90, cy - 70, 52, 32, 16, gearTime * 0.3, '#2a2a3e');
+  // medium gear top-right
+  drawGear(cx + 80, cy - 80, 38, 22, 12, -gearTime * 0.4, '#252538');
+  // small gear bottom-left
+  drawGear(cx - 95, cy + 90, 30, 16, 8, gearTime * 0.65, '#222235');
+  // medium gear bottom-right
+  drawGear(cx + 85, cy + 80, 44, 26, 14, -gearTime * 0.35, '#282840');
+  // small gear right
+  drawGear(cx + 90, cy + 5, 25, 12, 6, gearTime * 0.6, '#202030');
+  // small gear left
+  drawGear(cx - 100, cy + 5, 28, 14, 7, -gearTime * 0.55, '#232338');
+
+  // central gear ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 6, 0, Math.PI * 2);
+  ctx.clip();
+
+  // outer ring
+  const ringGrad = ctx.createRadialGradient(cx, cy, R - 18, cx, cy, R + 2);
+  ringGrad.addColorStop(0, '#3d3220');
+  ringGrad.addColorStop(0.5, '#8b7355');
+  ringGrad.addColorStop(1, '#5a4a32');
+  ctx.fillStyle = ringGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.arc(cx, cy, R - 16, 0, Math.PI * 2, true);
+  ctx.fill();
+
+  // outer gear teeth on the ring
+  const teeth = 60;
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2;
+    const nextA = ((i + 0.4) / teeth) * Math.PI * 2;
+    ctx.fillStyle = (i % 5 === 0) ? '#6b5b3e' : '#8b7355';
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * (R + 1), cy + Math.sin(a) * (R + 1));
+    ctx.lineTo(cx + Math.cos(nextA) * (R + 4), cy + Math.sin(nextA) * (R + 4));
+    ctx.lineTo(cx + Math.cos((i + 0.6) / teeth * Math.PI * 2) * (R + 4), cy + Math.sin((i + 0.6) / teeth * Math.PI * 2) * (R + 4));
+    ctx.lineTo(cx + Math.cos((i + 1) / teeth * Math.PI * 2) * (R + 1), cy + Math.sin((i + 1) / teeth * Math.PI * 2) * (R + 1));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // inner decorative ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 16, 0, Math.PI * 2);
+  ctx.strokeStyle = '#c9a96e';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // === clock face ===
+  const faceGrad = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R - 20);
+  faceGrad.addColorStop(0, '#f5f0e6');
+  faceGrad.addColorStop(0.7, '#e8ddd0');
+  faceGrad.addColorStop(1, '#d5c8b0');
+  ctx.fillStyle = faceGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // inner border
+  ctx.strokeStyle = '#8b7355';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 20, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = '#c9a96e';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 24, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // center gear decoration
+  drawGear(cx, cy, 28, 18, 10, 0, '#8b7355');
+  drawGear(cx, cy, 18, 10, 6, 0, '#c9a96e');
+
+  // === tick marks ===
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const inner = isHour ? R - 48 : R - 38;
+    const outer = R - 24;
+    const width = isHour ? 3 : 1;
+
+    ctx.strokeStyle = isHour ? '#4a3520' : '#8b7355';
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+    ctx.stroke();
+  }
+
+  // === Roman numerals ===
+  ctx.fillStyle = '#3a2a1a';
+  ctx.font = 'bold 20px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const romans = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const nr = R - 72;
+    ctx.fillText(romans[i], cx + Math.cos(angle) * nr, cy + Math.sin(angle) * nr);
+  }
+
+  // === hour hand (ornate) ===
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(hAngle);
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+
+  const hGrad = ctx.createLinearGradient(0, 0, 0, -(R * 0.55));
+  hGrad.addColorStop(0, '#3a2a1a');
+  hGrad.addColorStop(0.5, '#6b4c2a');
+  hGrad.addColorStop(1, '#4a3520');
+  ctx.fillStyle = hGrad;
+  ctx.beginPath();
+  ctx.moveTo(-7, 15);
+  ctx.lineTo(-5, -(R * 0.30));
+  ctx.lineTo(-2, -(R * 0.48));
+  ctx.lineTo(0, -(R * 0.55));
+  ctx.lineTo(2, -(R * 0.48));
+  ctx.lineTo(5, -(R * 0.30));
+  ctx.lineTo(7, 15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#1a0f05';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // decorative circle on hour hand
+  ctx.fillStyle = '#c9a96e';
+  ctx.beginPath();
+  ctx.arc(0, -(R * 0.28), 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // === minute hand ===
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(mAngle);
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  const mGrad = ctx.createLinearGradient(0, 0, 0, -(R * 0.72));
+  mGrad.addColorStop(0, '#2a1a0a');
+  mGrad.addColorStop(0.5, '#5a4028');
+  mGrad.addColorStop(1, '#3a2515');
+  ctx.fillStyle = mGrad;
+  ctx.beginPath();
+  ctx.moveTo(-5, 18);
+  ctx.lineTo(-3, -(R * 0.45));
+  ctx.lineTo(-2, -(R * 0.63));
+  ctx.lineTo(0, -(R * 0.72));
+  ctx.lineTo(2, -(R * 0.63));
+  ctx.lineTo(3, -(R * 0.45));
+  ctx.lineTo(5, 18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#1a0f05';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // decorative circle on minute hand
+  ctx.fillStyle = '#d4af37';
+  ctx.beginPath();
+  ctx.arc(0, -(R * 0.42), 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // === second hand (thin, red-gold) ===
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(sAngle);
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 4;
+
+  ctx.strokeStyle = '#c0392b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 25);
+  ctx.lineTo(0, -(R * 0.78));
+  ctx.stroke();
+
+  // tip
+  ctx.fillStyle = '#d4af37';
+  ctx.beginPath();
+  ctx.arc(0, -(R * 0.78), 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // counterweight
+  ctx.fillStyle = '#c9a96e';
+  ctx.beginPath();
+  ctx.arc(0, 20, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // === center cap ===
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  const capGrad = ctx.createRadialGradient(cx - 1, cy - 1, 2, cx, cy, 10);
+  capGrad.addColorStop(0, '#f0d080');
+  capGrad.addColorStop(0.5, '#c9a96e');
+  capGrad.addColorStop(1, '#6b4c2a');
+  ctx.fillStyle = capGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // center dot
+  ctx.fillStyle = '#1a0f05';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+
+  // === tick marks inside gears (for texture) ===
+  // small detail lines around the outer ring
+  for (let i = 0; i < 120; i++) {
+    const angle = (i / 120) * Math.PI * 2;
+    ctx.strokeStyle = i % 2 === 0 ? '#6b5b3e' : '#5a4a32';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * (R - 16), cy + Math.sin(angle) * (R - 16));
+    ctx.lineTo(cx + Math.cos(angle) * (R - 8), cy + Math.sin(angle) * (R - 8));
+    ctx.stroke();
+  }
+}
+
+function animate() {
+  drawClock();
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

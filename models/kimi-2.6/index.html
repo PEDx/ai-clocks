@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机械时钟</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="clock" width="500" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById('clock');
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        function drawGear(x, y, radius, teeth, rotation, color, innerRadius) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+
+            const gradient = ctx.createRadialGradient(0, 0, innerRadius * 0.3, 0, 0, radius);
+            gradient.addColorStop(0, '#4a4a4a');
+            gradient.addColorStop(0.5, color);
+            gradient.addColorStop(1, '#2a2a2a');
+
+            ctx.beginPath();
+            const angleStep = (Math.PI * 2) / teeth;
+            const toothDepth = radius * 0.15;
+
+            for (let i = 0; i < teeth; i++) {
+                const angle = i * angleStep;
+                const nextAngle = (i + 1) * angleStep;
+                const toothWidth = angleStep * 0.3;
+
+                if (i === 0) {
+                    ctx.moveTo(
+                        Math.cos(angle + toothWidth) * radius,
+                        Math.sin(angle + toothWidth) * radius
+                    );
+                }
+
+                ctx.lineTo(
+                    Math.cos(angle + toothWidth) * (radius + toothDepth),
+                    Math.sin(angle + toothWidth) * (radius + toothDepth)
+                );
+                ctx.lineTo(
+                    Math.cos(angle + angleStep * 0.5) * (radius + toothDepth),
+                    Math.sin(angle + angleStep * 0.5) * (radius + toothDepth)
+                );
+                ctx.lineTo(
+                    Math.cos(nextAngle - toothWidth) * (radius + toothDepth),
+                    Math.sin(nextAngle - toothWidth) * (radius + toothDepth)
+                );
+                ctx.lineTo(
+                    Math.cos(nextAngle - toothWidth) * radius,
+                    Math.sin(nextAngle - toothWidth) * radius
+                );
+
+                ctx.arc(0, 0, radius, nextAngle - toothWidth, nextAngle + toothWidth);
+            }
+
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // 内圆
+            ctx.beginPath();
+            ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fill();
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 中心孔
+            ctx.beginPath();
+            ctx.arc(0, 0, innerRadius * 0.3, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawClockFace() {
+            // 外圈装饰齿轮
+            drawGear(centerX, centerY, 230, 60, 0, '#8B7355', 210);
+
+            // 表盘背景
+            const faceGradient = ctx.createRadialGradient(
+                centerX - 50, centerY - 50, 0,
+                centerX, centerY, 200
+            );
+            faceGradient.addColorStop(0, '#f5f5dc');
+            faceGradient.addColorStop(0.7, '#d4c4a8');
+            faceGradient.addColorStop(1, '#a89070');
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 200, 0, Math.PI * 2);
+            ctx.fillStyle = faceGradient;
+            ctx.fill();
+            ctx.strokeStyle = '#5a4a3a';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 内圈装饰线
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 190, 0, Math.PI * 2);
+            ctx.strokeStyle = '#8a7a6a';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 180, 0, Math.PI * 2);
+            ctx.strokeStyle = '#8a7a6a';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function drawMarkers() {
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6 - 90) * Math.PI / 180;
+                const isHour = i % 5 === 0;
+                const innerR = isHour ? 155 : 165;
+                const outerR = isHour ? 175 : 170;
+                const width = isHour ? 3 : 1;
+
+                const x1 = centerX + Math.cos(angle) * innerR;
+                const y1 = centerY + Math.sin(angle) * innerR;
+                const x2 = centerX + Math.cos(angle) * outerR;
+                const y2 = centerY + Math.sin(angle) * outerR;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = isHour ? '#3a2a1a' : '#6a5a4a';
+                ctx.lineWidth = width;
+                ctx.stroke();
+
+                if (isHour) {
+                    const numRadius = 135;
+                    const numX = centerX + Math.cos(angle) * numRadius;
+                    const numY = centerY + Math.sin(angle) * numRadius;
+                    const hourNum = i === 0 ? 12 : i / 5;
+
+                    ctx.fillStyle = '#3a2a1a';
+                    ctx.font = 'bold 22px Georgia, serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(hourNum.toString(), numX, numY);
+                }
+            }
+        }
+
+        function drawHand(angle, length, width, color, tailLength = 20) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            const gradient = ctx.createLinearGradient(-tailLength, -width/2, length, width/2);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(0.5, '#d4af37');
+            gradient.addColorStop(1, color);
+
+            ctx.beginPath();
+            ctx.moveTo(0, -width / 2);
+            ctx.lineTo(length, 0);
+            ctx.lineTo(0, width / 2);
+            ctx.lineTo(-tailLength, width / 4);
+            ctx.lineTo(-tailLength, -width / 4);
+            ctx.closePath();
+
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.strokeStyle = '#2a2a2a';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawSecondHand(angle) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+
+            // 秒针主体
+            ctx.beginPath();
+            ctx.moveTo(0, -2);
+            ctx.lineTo(170, 0);
+            ctx.lineTo(0, 2);
+            ctx.lineTo(-25, 1);
+            ctx.lineTo(-25, -1);
+            ctx.closePath();
+
+            ctx.fillStyle = '#c41e3a';
+            ctx.fill();
+            ctx.strokeStyle = '#8b0000';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+
+            // 秒针尾部圆点
+            ctx.beginPath();
+            ctx.arc(-30, 0, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#c41e3a';
+            ctx.fill();
+            ctx.strokeStyle = '#8b0000';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawCenterCap() {
+            // 中心装饰
+            const capGradient = ctx.createRadialGradient(
+                centerX - 5, centerY - 5, 0,
+                centerX, centerY, 15
+            );
+            capGradient.addColorStop(0, '#d4af37');
+            capGradient.addColorStop(0.7, '#b8860b');
+            capGradient.addColorStop(1, '#8b6914');
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 12, 0, Math.PI * 2);
+            ctx.fillStyle = capGradient;
+            ctx.fill();
+            ctx.strokeStyle = '#5a4a1a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#3a2a1a';
+            ctx.fill();
+        }
+
+        function drawDecorativeGears(now) {
+            const ms = now.getMilliseconds();
+            const s = now.getSeconds();
+            const totalSeconds = s + ms / 1000;
+
+            // 左下角齿轮
+            drawGear(80, 420, 45, 12, totalSeconds * 0.5, '#8B7355', 25);
+            // 右下角齿轮
+            drawGear(420, 420, 35, 10, -totalSeconds * 0.7, '#6b5b45', 20);
+            // 左上角齿轮
+            drawGear(100, 100, 30, 8, totalSeconds * 0.3, '#7a6a55', 15);
+        }
+
+        function drawClock() {
+            const now = new Date();
+            const ms = now.getMilliseconds();
+            const s = now.getSeconds();
+            const m = now.getMinutes();
+            const h = now.getHours();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景装饰齿轮
+            drawDecorativeGears(now);
+
+            // 表盘
+            drawClockFace();
+            drawMarkers();
+
+            // 计算角度
+            const secondAngle = ((s + ms / 1000) * 6 - 90) * Math.PI / 180;
+            const minuteAngle = ((m + s / 60) * 6 - 90) * Math.PI / 180;
+            const hourAngle = (((h % 12) + m / 60) * 30 - 90) * Math.PI / 180;
+
+            // 绘制指针
+            drawHand(hourAngle, 100, 8, '#2a2a2a', 25);
+            drawHand(minuteAngle, 150, 6, '#3a3a3a', 25);
+            drawSecondHand(secondAngle);
+
+            // 中心盖
+            drawCenterCap();
+        }
+
+        function animate() {
+            drawClock();
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
