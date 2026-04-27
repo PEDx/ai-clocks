@@ -290,6 +290,57 @@
       justify-content: center;
     }
 
+    .stats-panel {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px 20px 16px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(250, 249, 247, 0.7), rgba(255, 255, 255, 0.95));
+    }
+
+    .stat-card {
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .stat-card.is-primary {
+      border-color: rgba(217, 119, 87, 0.22);
+      background: var(--accent-soft);
+    }
+
+    .stat-value {
+      display: block;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 650;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .stat-label {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .stat-card.is-compact {
+      padding: 8px 10px;
+    }
+
+    .stat-card.is-compact .stat-value {
+      font-size: 14px;
+    }
+
     .preview {
       position: relative;
       aspect-ratio: 1 / 1;
@@ -345,6 +396,10 @@
       .card-head {
         flex-direction: column;
         align-items: flex-start;
+      }
+
+      .stats-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .prompt-toolbar {
@@ -437,18 +492,66 @@
 
   <script>
     const models = [
-      { name: "Claude Opus 4.6", path: "./models/claude-opus-4.6/index.html" },
-      { name: "DeepSeek V4 Pro", path: "./models/deepseek-v4-pro/index.html" },
-      { name: "Codex GPT 5.5", path: "./models/codex-gpt-5.5/index.html" },
-      { name: "Codex GPT 5.4", path: "./models/codex-5.4/index.html" },
-      { name: "GLM 5.1", path: "./models/glm-5.1/index.html" },
-      { name: "GLM 5.1  (Ext)", path: "./models/external-glm-5.1/index.html" },
-      { name: "Qwen 3.6 35B", path: "./models/qwen-3.6-35b/index.html" },
-      { name: "Qwen 3.6 27B", path: "./models/qwen-3.6-27b/index.html" },
-      { name: "Kimi 2.6", path: "./models/kimi-2.6/index.html" },
-      { name: "MiniMax 2.7", path: "./models/minimax-2.7/index.html" },
-      { name: "Qwen 3.5 122B", path: "./models/qwen-122b/index.html" },
-      { name: "Qwen 3.5 27B", path: "./models/qwen-27b/index.html" }
+      {
+        name: "Claude Opus 4.6",
+        path: "./models/claude-opus-4.6/index.html",
+        stats: { lines: 286, codeLines: 249, blankLines: 18, commentLines: 19, functions: 5, scripts: 1, styles: 1, bytes: 8528 }
+      },
+      {
+        name: "DeepSeek V4 Pro",
+        path: "./models/deepseek-v4-pro/index.html",
+        stats: { lines: 383, codeLines: 311, blankLines: 41, commentLines: 31, functions: 3, scripts: 1, styles: 1, bytes: 10394 }
+      },
+      {
+        name: "Codex GPT 5.5",
+        path: "./models/codex-gpt-5.5/index.html",
+        stats: { lines: 394, codeLines: 344, blankLines: 50, commentLines: 0, functions: 11, scripts: 1, styles: 1, bytes: 12468 }
+      },
+      {
+        name: "Codex GPT 5.4",
+        path: "./models/codex-5.4/index.html",
+        stats: { lines: 407, codeLines: 353, blankLines: 54, commentLines: 0, functions: 9, scripts: 1, styles: 1, bytes: 12389 }
+      },
+      {
+        name: "GLM 5.1",
+        path: "./models/glm-5.1/index.html",
+        stats: { lines: 230, codeLines: 193, blankLines: 21, commentLines: 16, functions: 3, scripts: 1, styles: 1, bytes: 6617 }
+      },
+      {
+        name: "GLM 5.1  (Ext)",
+        path: "./models/external-glm-5.1/index.html",
+        stats: { lines: 275, codeLines: 213, blankLines: 35, commentLines: 27, functions: 3, scripts: 1, styles: 1, bytes: 7968 }
+      },
+      {
+        name: "Qwen 3.6 35B",
+        path: "./models/qwen-3.6-35b/index.html",
+        stats: { lines: 255, codeLines: 212, blankLines: 26, commentLines: 17, functions: 4, scripts: 1, styles: 1, bytes: 7047 }
+      },
+      {
+        name: "Qwen 3.6 27B",
+        path: "./models/qwen-3.6-27b/index.html",
+        stats: { lines: 402, codeLines: 332, blankLines: 48, commentLines: 22, functions: 14, scripts: 1, styles: 1, bytes: 11348 }
+      },
+      {
+        name: "Kimi 2.6",
+        path: "./models/kimi-2.6/index.html",
+        stats: { lines: 309, codeLines: 248, blankLines: 45, commentLines: 16, functions: 9, scripts: 1, styles: 1, bytes: 10120 }
+      },
+      {
+        name: "MiniMax 2.7",
+        path: "./models/minimax-2.7/index.html",
+        stats: { lines: 247, codeLines: 190, blankLines: 36, commentLines: 21, functions: 4, scripts: 1, styles: 1, bytes: 7647 }
+      },
+      {
+        name: "Qwen 3.5 122B",
+        path: "./models/qwen-122b/index.html",
+        stats: { lines: 217, codeLines: 169, blankLines: 29, commentLines: 19, functions: 7, scripts: 1, styles: 1, bytes: 6983 }
+      },
+      {
+        name: "Qwen 3.5 27B",
+        path: "./models/qwen-27b/index.html",
+        stats: { lines: 141, codeLines: 106, blankLines: 22, commentLines: 13, functions: 2, scripts: 1, styles: 1, bytes: 4579 }
+      }
     ]
 
     const grid = document.getElementById("grid")
@@ -471,9 +574,16 @@
     updateTime()
     window.setInterval(updateTime, 1000)
 
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes)) return "-"
+      if (bytes < 1024) return `${bytes} B`
+      return `${(bytes / 1024).toFixed(1)} KB`
+    }
+
     models.forEach((model) => {
       const card = document.createElement("article")
       card.className = "card"
+      const stats = model.stats || {}
 
       card.innerHTML = `
         <div class="card-head">
@@ -489,6 +599,32 @@
               </svg>
             </span>
           </a>
+        </div>
+        <div class="stats-panel" aria-label="${model.name} code statistics">
+          <div class="stat-card is-primary">
+            <span class="stat-value">${stats.lines ?? "-"}</span>
+            <span class="stat-label">Lines</span>
+          </div>
+          <div class="stat-card is-primary">
+            <span class="stat-value">${stats.functions ?? "-"}</span>
+            <span class="stat-label">Functions</span>
+          </div>
+          <div class="stat-card is-primary">
+            <span class="stat-value">${stats.commentLines ?? "-"}</span>
+            <span class="stat-label">Comments</span>
+          </div>
+          <div class="stat-card is-primary">
+            <span class="stat-value">${formatBytes(stats.bytes)}</span>
+            <span class="stat-label">Size</span>
+          </div>
+          <div class="stat-card is-compact">
+            <span class="stat-value">${stats.codeLines ?? "-"}</span>
+            <span class="stat-label">Code lines</span>
+          </div>
+          <div class="stat-card is-compact">
+            <span class="stat-value">${stats.blankLines ?? "-"}</span>
+            <span class="stat-label">Blank lines</span>
+          </div>
         </div>
         <div class="preview">
           <div class="preview-frame">
