@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机械时钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+
+const size = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+canvas.width = size;
+canvas.height = size;
+const cx = size / 2;
+const cy = size / 2;
+const R = size / 2 * 0.88;
+
+// Colors
+const C = {
+  rimOuter: '#8B7355',
+  rimMid: '#C4A96A',
+  rimInner: '#5C4033',
+  dial: '#FAF0E6',
+  dialShadow: '#E8D5B7',
+  hourHand: '#2C2C2C',
+  minuteHand: '#3A3A3A',
+  secondHand: '#B22222',
+  tickMajor: '#2C2C2C',
+  tickMinor: '#555',
+  number: '#2C2C2C',
+  screw: '#C4A96A',
+  glass: 'rgba(200,220,240,0.08)',
+};
+
+function drawRim() {
+  // Outer rim with gradient
+  for (let i = 3; i >= 0; i--) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + i * 2, 0, Math.PI * 2);
+    const g = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.2, cx, cy, R + i * 2);
+    g.addColorStop(0, C.rimMid);
+    g.addColorStop(0.5, C.rimOuter);
+    g.addColorStop(1, C.rimInner);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
+
+  // Rim decorative ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 4, 0, Math.PI * 2);
+  ctx.strokeStyle = C.rimInner;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Inner bevel
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 2, 0, Math.PI * 2);
+  const bevel = ctx.createRadialGradient(cx - R * 0.2, cy - R * 0.2, R * 0.5, cx, cy, R);
+  bevel.addColorStop(0, 'rgba(255,255,255,0.15)');
+  bevel.addColorStop(1, 'rgba(0,0,0,0.2)');
+  ctx.fillStyle = bevel;
+  ctx.fill();
+}
+
+function drawDial() {
+  // Main dial face
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 8, 0, Math.PI * 2);
+  const dial = ctx.createRadialGradient(cx - R * 0.25, cy - R * 0.25, R * 0.1, cx, cy, R - 8);
+  dial.addColorStop(0, '#FFFDF7');
+  dial.addColorStop(0.7, C.dial);
+  dial.addColorStop(1, C.dialShadow);
+  ctx.fillStyle = dial;
+  ctx.fill();
+
+  // Subtle texture
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 8, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawTicks() {
+  for (let i = 0; i < 60; i++) {
+    const angle = (i * 6 - 90) * Math.PI / 180;
+    const isMajor = i % 5 === 0;
+    const outerR = R - 12;
+    const innerR = isMajor ? R - 30 : R - 18;
+
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.strokeStyle = isMajor ? C.tickMajor : C.tickMinor;
+    ctx.lineWidth = isMajor ? 3 : 1;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+}
+
+function drawNumbers() {
+  ctx.fillStyle = C.number;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const nums = [12,1,2,3,4,5,6,7,8,9,10,11];
+  const numR = R - 48;
+
+  // Use a serif font for mechanical feel
+  ctx.font = `${size * 0.055}px Georgia, "Times New Roman", serif`;
+
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * 30 - 90) * Math.PI / 180;
+    const x = cx + Math.cos(angle) * numR;
+    const y = cy + Math.sin(angle) * numR;
+    ctx.fillText(nums[i], x, y);
+  }
+}
+
+function drawScrews() {
+  const screwPositions = [0, 90, 180, 270];
+  const screwR = R - 6;
+  screwPositions.forEach(deg => {
+    const angle = (deg - 90) * Math.PI / 180;
+    const sx = cx + Math.cos(angle) * screwR;
+    const sy = cy + Math.sin(angle) * screwR;
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    const sg = ctx.createRadialGradient(sx - 1, sy - 1, 0.5, sx, sy, 3);
+    sg.addColorStop(0, '#E8D5B7');
+    sg.addColorStop(1, C.screw);
+    ctx.fillStyle = sg;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // screw slot
+    ctx.beginPath();
+    ctx.moveTo(sx - 2, sy);
+    ctx.lineTo(sx + 2, sy);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  });
+}
+
+function drawHourHand(hours, minutes) {
+  const angle = (hours % 12) * 30 + minutes * 0.5;
+  const length = R * 0.5;
+  const width = size * 0.022;
+
+  // Ornate hour hand shape
+  const rad = (angle - 90) * Math.PI / 180;
+  const tipX = cx + Math.cos(rad) * length;
+  const tipY = cy + Math.sin(rad) * length;
+  const tailX = cx - Math.cos(rad) * length * 0.18;
+  const tailY = cy - Math.sin(rad) * length * 0.18;
+  const wingSpread = width * 1.8;
+  const wingAngle = Math.PI * 0.35;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 3;
+
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  // right side
+  ctx.lineTo(cx + Math.cos(rad + wingAngle * 0.1) * length * 0.55 + Math.cos(rad + Math.PI / 2) * wingSpread,
+             cy + Math.sin(rad + wingAngle * 0.1) * length * 0.55 + Math.sin(rad + Math.PI / 2) * wingSpread);
+  ctx.lineTo(cx + Math.cos(rad + Math.PI / 2) * wingSpread * 0.5,
+             cy + Math.sin(rad + Math.PI / 2) * wingSpread * 0.5);
+  // tail
+  ctx.lineTo(tailX, tailY);
+  // left side
+  ctx.lineTo(cx + Math.cos(rad - wingAngle * 0.1) * length * 0.55 - Math.cos(rad + Math.PI / 2) * wingSpread,
+             cy + Math.sin(rad - wingAngle * 0.1) * length * 0.55 - Math.sin(rad + Math.PI / 2) * wingSpread);
+  ctx.lineTo(cx - Math.cos(rad + Math.PI / 2) * wingSpread * 0.5,
+             cy - Math.sin(rad + Math.PI / 2) * wingSpread * 0.5);
+  ctx.closePath();
+
+  const handGrad = ctx.createLinearGradient(
+    cx - Math.cos(rad) * length, cy - Math.sin(rad) * length,
+    cx + Math.cos(rad) * length, cy + Math.sin(rad) * length
+  );
+  handGrad.addColorStop(0, '#444');
+  handGrad.addColorStop(0.5, '#1a1a1a');
+  handGrad.addColorStop(1, '#333');
+  ctx.fillStyle = handGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // highlight
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tailX, tailY);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = width * 0.5;
+  ctx.stroke();
+}
+
+function drawMinuteHand(minutes, seconds) {
+  const angle = minutes * 6 + seconds * 0.1;
+  const length = R * 0.68;
+  const width = size * 0.015;
+
+  const rad = (angle - 90) * Math.PI / 180;
+  const tipX = cx + Math.cos(rad) * length;
+  const tipY = cy + Math.sin(rad) * length;
+  const tailX = cx - Math.cos(rad) * length * 0.15;
+  const tailY = cy - Math.sin(rad) * length * 0.15;
+  const wingSpread = width * 1.5;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(cx + Math.cos(rad + Math.PI / 2) * wingSpread * 0.6,
+             cy + Math.sin(rad + Math.PI / 2) * wingSpread * 0.6);
+  ctx.lineTo(tailX, tailY);
+  ctx.lineTo(cx - Math.cos(rad + Math.PI / 2) * wingSpread * 0.6,
+             cy - Math.sin(rad + Math.PI / 2) * wingSpread * 0.6);
+  ctx.closePath();
+
+  const handGrad = ctx.createLinearGradient(
+    cx - Math.cos(rad) * length, cy - Math.sin(rad) * length,
+    cx + Math.cos(rad) * length, cy + Math.sin(rad) * length
+  );
+  handGrad.addColorStop(0, '#3a3a3a');
+  handGrad.addColorStop(0.5, '#222');
+  handGrad.addColorStop(1, '#444');
+  ctx.fillStyle = handGrad;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSecondHand(seconds, millis) {
+  const angle = (seconds + millis / 1000) * 6;
+  const rad = (angle - 90) * Math.PI / 180;
+  const length = R * 0.72;
+  const tailLength = R * 0.2;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(178,34,34,0.4)';
+  ctx.shadowBlur = 4;
+
+  // Main shaft
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(rad) * tailLength, cy - Math.sin(rad) * tailLength);
+  ctx.lineTo(cx + Math.cos(rad) * length, cy + Math.sin(rad) * length);
+  ctx.strokeStyle = C.secondHand;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Diamond counterweight
+  const cwLen = tailLength * 0.8;
+  const cwWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(rad) * 5, cy - Math.sin(rad) * 5);
+  ctx.lineTo(cx + Math.cos(rad + Math.PI / 2) * cwWidth, cy + Math.sin(rad + Math.PI / 2) * cwWidth);
+  ctx.lineTo(cx - Math.cos(rad) * cwLen, cy - Math.sin(rad) * cwLen);
+  ctx.lineTo(cx - Math.cos(rad + Math.PI / 2) * cwWidth, cy - Math.sin(rad + Math.PI / 2) * cwWidth);
+  ctx.closePath();
+  ctx.fillStyle = C.secondHand;
+  ctx.fill();
+
+  // Tip circle
+  ctx.beginPath();
+  ctx.arc(cx + Math.cos(rad) * length * 0.85, cy + Math.sin(rad) * length * 0.85, 3, 0, Math.PI * 2);
+  ctx.fillStyle = C.secondHand;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCenterCap() {
+  // Hour nut
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.018, 0, Math.PI * 2);
+  const g1 = ctx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, size * 0.018);
+  g1.addColorStop(0, '#E8D5B7');
+  g1.addColorStop(1, '#8B7355');
+  ctx.fillStyle = g1;
+  ctx.fill();
+
+  // Second hand cap
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.008, 0, Math.PI * 2);
+  ctx.fillStyle = C.secondHand;
+  ctx.fill();
+}
+
+function drawGlassReflection() {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 8, 0, Math.PI * 2);
+  ctx.clip();
+
+  const g = ctx.createLinearGradient(cx - R, cy - R, cx + R * 0.5, cy + R);
+  g.addColorStop(0, 'rgba(255,255,255,0.12)');
+  g.addColorStop(0.3, 'rgba(255,255,255,0.02)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.03)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+  ctx.restore();
+}
+
+function drawSubDial() {
+  // Small seconds sub-dial at 6 o'clock (optional decorative)
+  const subCx = cx;
+  const subCy = cy + R * 0.6;
+  const subR = R * 0.15;
+
+  // Sub-dial background
+  ctx.beginPath();
+  ctx.arc(subCx, subCy, subR, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.03)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Sub-dial ticks
+  for (let i = 0; i < 12; i++) {
+    const a = (i * 30 - 90) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(subCx + Math.cos(a) * (subR - 3), subCy + Math.sin(a) * (subR - 3));
+    ctx.lineTo(subCx + Math.cos(a) * (subR - 7), subCy + Math.sin(a) * (subR - 7));
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  // Brand text
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.font = `${size * 0.022}px Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('MECHANICAL', cx, cy - R * 0.3);
+  ctx.font = `${size * 0.016}px Georgia, serif`;
+  ctx.fillText('SWISS MADE', cx, cy + R * 0.78);
+}
+
+function draw() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ms = now.getMilliseconds();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawRim();
+  drawDial();
+  drawSubDial();
+  drawTicks();
+  drawNumbers();
+  drawScrews();
+  drawHourHand(h, m);
+  drawMinuteHand(m, s);
+  drawSecondHand(s, ms);
+  drawCenterCap();
+  drawGlassReflection();
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+
+window.addEventListener('resize', () => {
+  location.reload();
+});
+</script>
+</body>
+</html>

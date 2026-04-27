@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>机械时钟</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #1a1a2e;
+    overflow: hidden;
+  }
+  canvas {
+    filter: drop-shadow(0 0 30px rgba(197,165,66,0.3));
+  }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+
+const SIZE = 600;
+const CENTER = SIZE / 2;
+const R = 240; // clock face radius
+
+canvas.width = SIZE;
+canvas.height = SIZE;
+
+// Roman numerals
+const ROMAN = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+
+function drawClock() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  const now = new Date();
+  const h = now.getHours() % 12;
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ms = now.getMilliseconds();
+
+  // Smooth second hand
+  const secAngle = ((s + ms / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+  const minAngle = ((m + s / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+  const hourAngle = ((h + m / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+
+  // === Outer bezel ===
+  const bezelGrad = ctx.createRadialGradient(CENTER, CENTER, R - 10, CENTER, CENTER, R + 30);
+  bezelGrad.addColorStop(0, '#c5a542');
+  bezelGrad.addColorStop(0.3, '#e8d48b');
+  bezelGrad.addColorStop(0.5, '#b8922d');
+  bezelGrad.addColorStop(0.7, '#dfc46e');
+  bezelGrad.addColorStop(1, '#8a6d1b');
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R + 25, 0, Math.PI * 2);
+  ctx.fillStyle = bezelGrad;
+  ctx.fill();
+
+  // Bezel inner ring
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R + 5, 0, Math.PI * 2);
+  ctx.strokeStyle = '#a08428';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // === Clock face ===
+  const faceGrad = ctx.createRadialGradient(CENTER, CENTER - 40, 0, CENTER, CENTER, R);
+  faceGrad.addColorStop(0, '#fef9ef');
+  faceGrad.addColorStop(0.85, '#f5ecd3');
+  faceGrad.addColorStop(1, '#e8d8b0');
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R, 0, Math.PI * 2);
+  ctx.fillStyle = faceGrad;
+  ctx.fill();
+
+  // Face border
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#b8922d';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // === Inner decorative ring ===
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, R - 30, 0, Math.PI * 2);
+  ctx.strokeStyle = '#c5a542';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // === Minute ticks ===
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const outerR = R - 5;
+    const innerR = isHour ? R - 25 : R - 14;
+    const lw = isHour ? 2.5 : 1;
+
+    ctx.beginPath();
+    ctx.moveTo(CENTER + Math.cos(angle) * innerR, CENTER + Math.sin(angle) * innerR);
+    ctx.lineTo(CENTER + Math.cos(angle) * outerR, CENTER + Math.sin(angle) * outerR);
+    ctx.strokeStyle = isHour ? '#2c1810' : '#6b5545';
+    ctx.lineWidth = lw;
+    ctx.stroke();
+  }
+
+  // === Roman numerals ===
+  ctx.font = '700 22px "Georgia", serif';
+  ctx.fillStyle = '#2c1810';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const numR = R - 45;
+    const x = CENTER + Math.cos(angle) * numR;
+    const y = CENTER + Math.sin(angle) * numR;
+    ctx.fillText(ROMAN[i], x, y);
+  }
+
+  // === Decorative small sub-dial (seconds) ===
+  const subR = 45;
+  const subCX = CENTER;
+  const subCY = CENTER + 70;
+
+  ctx.beginPath();
+  ctx.arc(subCX, subCY, subR + 3, 0, Math.PI * 2);
+  ctx.strokeStyle = '#c5a542';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  const subFaceGrad = ctx.createRadialGradient(subCX, subCY - 10, 0, subCX, subCY, subR);
+  subFaceGrad.addColorStop(0, '#fef9ef');
+  subFaceGrad.addColorStop(1, '#f0e4c8');
+  ctx.beginPath();
+  ctx.arc(subCX, subCY, subR, 0, Math.PI * 2);
+  ctx.fillStyle = subFaceGrad;
+  ctx.fill();
+
+  // Sub-dial ticks
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const is5 = i % 5 === 0;
+    const oR = subR - 2;
+    const iR = is5 ? subR - 10 : subR - 5;
+    ctx.beginPath();
+    ctx.moveTo(subCX + Math.cos(angle) * iR, subCY + Math.sin(angle) * iR);
+    ctx.lineTo(subCX + Math.cos(angle) * oR, subCY + Math.sin(angle) * oR);
+    ctx.strokeStyle = is5 ? '#2c1810' : '#8b7355';
+    ctx.lineWidth = is5 ? 1.5 : 0.5;
+    ctx.stroke();
+  }
+
+  // Sub-dial numbers
+  ctx.font = '600 10px "Georgia", serif';
+  ctx.fillStyle = '#2c1810';
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const numR2 = subR - 16;
+    ctx.fillText(String(i * 5), subCX + Math.cos(angle) * numR2, subCY + Math.sin(angle) * numR2 + 1);
+  }
+
+  // Sub-dial second hand
+  const subSecAngle = ((s + ms / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+  drawHand(subCX, subCY, subSecAngle, subR - 14, 1, '#b81c1c', 6);
+
+  // === Hour hand ===
+  drawHand(CENTER, CENTER, hourAngle, R * 0.52, 6, '#2c1810', 20);
+
+  // === Minute hand ===
+  drawHand(CENTER, CENTER, minAngle, R * 0.72, 4, '#2c1810', 25);
+
+  // === Main second hand ===
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(CENTER, CENTER);
+  const tailAngle = secAngle + Math.PI;
+  ctx.lineTo(CENTER + Math.cos(tailAngle) * 30, CENTER + Math.sin(tailAngle) * 30);
+  ctx.strokeStyle = '#b81c1c';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Hand
+  ctx.beginPath();
+  ctx.moveTo(CENTER, CENTER);
+  ctx.lineTo(CENTER + Math.cos(secAngle) * (R - 35), CENTER + Math.sin(secAngle) * (R - 35));
+  ctx.strokeStyle = '#b81c1c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Second hand circle tip
+  ctx.beginPath();
+  ctx.arc(CENTER + Math.cos(secAngle) * (R - 40), CENTER + Math.sin(secAngle) * (R - 40), 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#b81c1c';
+  ctx.fill();
+
+  // === Center cap ===
+  const capGrad = ctx.createRadialGradient(CENTER, CENTER, 0, CENTER, CENTER, 12);
+  capGrad.addColorStop(0, '#e8d48b');
+  capGrad.addColorStop(0.5, '#c5a542');
+  capGrad.addColorStop(1, '#8a6d1b');
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, 12, 0, Math.PI * 2);
+  ctx.fillStyle = capGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#6b5517';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Inner center dot
+  ctx.beginPath();
+  ctx.arc(CENTER, CENTER, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#2c1810';
+  ctx.fill();
+
+  // === Brand text ===
+  ctx.font = '600 14px "Georgia", serif';
+  ctx.fillStyle = '#6b5545';
+  ctx.textAlign = 'center';
+  ctx.fillText('MECHANICAL', CENTER, CENTER - 60);
+  ctx.font = '500 11px "Georgia", serif';
+  ctx.fillText('SWISS MADE', CENTER, CENTER - 45);
+}
+
+function drawHand(cx, cy, angle, length, width, color, tailLen) {
+  // Shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 3;
+
+  // Tail
+  const tailAngle = angle + Math.PI;
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(tailAngle) * tailLen, cy + Math.sin(tailAngle) * tailLen);
+  ctx.lineTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(angle) * length, cy + Math.sin(angle) * length);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Hand shape (spade/lozenge style)
+  const tipX = cx + Math.cos(angle) * length;
+  const tipY = cy + Math.sin(angle) * length;
+  const midX = cx + Math.cos(angle) * length * 0.5;
+  const midY = cy + Math.sin(angle) * length * 0.5;
+
+  // Left/right offsets for diamond shape
+  const perpAngle = angle + Math.PI / 2;
+  const halfW = width * 1.2;
+
+  ctx.beginPath();
+  ctx.moveTo(cx + Math.cos(tailAngle) * tailLen, cy + Math.sin(tailAngle) * tailLen);
+  ctx.lineTo(cx + Math.cos(perpAngle) * halfW, cy + Math.sin(perpAngle) * halfW);
+  ctx.lineTo(tipX, tipY);
+  ctx.lineTo(cx - Math.cos(perpAngle) * halfW, cy - Math.sin(perpAngle) * halfW);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function animate() {
+  drawClock();
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
