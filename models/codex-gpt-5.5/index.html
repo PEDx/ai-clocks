@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canvas Mechanical Clock</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101214;
+      --panel: #181c1f;
+      --metal: #c9b47a;
+      --ink: #f4efe1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, #293039 0%, #15191d 45%, #08090a 100%);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="clock" aria-label="Mechanical analog clock"></canvas>
+
+  <script>
+    const canvas = document.getElementById("clock");
+    const ctx = canvas.getContext("2d");
+
+    const TAU = Math.PI * 2;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    function resize() {
+      dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener("resize", resize, { passive: true });
+    resize();
+
+    function polar(radius, angle) {
+      return {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius
+      };
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      const radius = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+
+    function drawGear(x, y, radius, teeth, rotation, fill, stroke) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+
+      const inner = radius * 0.72;
+      const outer = radius;
+      const root = radius * 0.84;
+
+      ctx.beginPath();
+      for (let i = 0; i < teeth * 2; i++) {
+        const a = (i / (teeth * 2)) * TAU;
+        const r = i % 2 === 0 ? outer : root;
+        const p = polar(r, a);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+
+      const gearGrad = ctx.createRadialGradient(-radius * 0.25, -radius * 0.35, radius * 0.1, 0, 0, radius);
+      gearGrad.addColorStop(0, "#fff1bb");
+      gearGrad.addColorStop(0.34, fill);
+      gearGrad.addColorStop(1, "#765f2a");
+      ctx.fillStyle = gearGrad;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.4, radius * 0.035);
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.beginPath();
+      ctx.arc(0, 0, inner * 0.36, 0, TAU);
+      ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        ctx.save();
+        ctx.rotate((i / 6) * TAU);
+        roundedRect(inner * 0.34, -radius * 0.065, radius * 0.45, radius * 0.13, radius * 0.06);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalCompositeOperation = "source-over";
+
+      ctx.beginPath();
+      ctx.arc(0, 0, inner * 0.36, 0, TAU);
+      ctx.lineWidth = Math.max(1, radius * 0.025);
+      ctx.strokeStyle = "rgba(52, 39, 18, 0.75)";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.1, 0, TAU);
+      ctx.fillStyle = "#3f3323";
+      ctx.fill();
+      ctx.strokeStyle = "#e1c776";
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawPendulum(cx, cy, scale, time) {
+      const swing = Math.sin(time * 2.55) * 0.28;
+      const topY = cy - scale * 0.08;
+      const len = scale * 0.82;
+
+      ctx.save();
+      ctx.translate(cx, topY);
+      ctx.rotate(swing);
+
+      const rodGrad = ctx.createLinearGradient(-8, 0, 8, 0);
+      rodGrad.addColorStop(0, "#6f5b32");
+      rodGrad.addColorStop(0.5, "#efd98d");
+      rodGrad.addColorStop(1, "#614d28");
+      ctx.strokeStyle = rodGrad;
+      ctx.lineWidth = Math.max(4, scale * 0.012);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, len);
+      ctx.stroke();
+
+      ctx.translate(0, len);
+      const bob = scale * 0.115;
+      const bobGrad = ctx.createRadialGradient(-bob * 0.35, -bob * 0.45, bob * 0.1, 0, 0, bob * 1.1);
+      bobGrad.addColorStop(0, "#fff3b3");
+      bobGrad.addColorStop(0.42, "#d4b461");
+      bobGrad.addColorStop(1, "#5a4522");
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bob * 0.84, bob, 0, 0, TAU);
+      ctx.fillStyle = bobGrad;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(40, 27, 11, 0.75)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawEscapement(cx, cy, scale, time) {
+      const tick = Math.floor(time * 2);
+      const snap = (tick % 2 === 0 ? -1 : 1) * 0.14;
+      const wheelR = scale * 0.13;
+
+      drawGear(cx, cy - scale * 0.16, wheelR, 15, -time * 1.8, "#d0ad58", "#3c2a13");
+
+      ctx.save();
+      ctx.translate(cx, cy - scale * 0.03);
+      ctx.rotate(snap);
+      ctx.lineWidth = Math.max(3, scale * 0.009);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#d9c177";
+      ctx.beginPath();
+      ctx.moveTo(-scale * 0.15, -scale * 0.025);
+      ctx.lineTo(0, scale * 0.03);
+      ctx.lineTo(scale * 0.15, -scale * 0.025);
+      ctx.stroke();
+
+      ctx.fillStyle = "#f2d987";
+      ctx.beginPath();
+      ctx.arc(0, scale * 0.03, scale * 0.018, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawFace(cx, cy, radius) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      const outer = ctx.createRadialGradient(-radius * 0.35, -radius * 0.45, radius * 0.1, 0, 0, radius * 1.1);
+      outer.addColorStop(0, "#f7eab2");
+      outer.addColorStop(0.26, "#c9a450");
+      outer.addColorStop(0.7, "#6b5426");
+      outer.addColorStop(1, "#20160b");
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.05, 0, TAU);
+      ctx.fillStyle = outer;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.95, 0, TAU);
+      const face = ctx.createRadialGradient(0, 0, radius * 0.15, 0, 0, radius);
+      face.addColorStop(0, "rgba(39, 43, 42, 0.94)");
+      face.addColorStop(0.74, "rgba(18, 21, 22, 0.9)");
+      face.addColorStop(1, "rgba(6, 7, 8, 0.96)");
+      ctx.fillStyle = face;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.82, 0, TAU);
+      ctx.strokeStyle = "rgba(236, 211, 128, 0.24)";
+      ctx.lineWidth = Math.max(1, radius * 0.012);
+      ctx.stroke();
+
+      for (let i = 0; i < 60; i++) {
+        const a = i * TAU / 60 - Math.PI / 2;
+        const major = i % 5 === 0;
+        const p1 = polar(radius * (major ? 0.73 : 0.78), a);
+        const p2 = polar(radius * 0.87, a);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = major ? "#efe0a1" : "rgba(239, 224, 161, 0.38)";
+        ctx.lineWidth = major ? Math.max(2, radius * 0.018) : Math.max(1, radius * 0.006);
+        ctx.lineCap = "round";
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#f5e7b6";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `${Math.max(18, radius * 0.13)}px Georgia, serif`;
+      for (let n = 1; n <= 12; n++) {
+        const a = n * TAU / 12 - Math.PI / 2;
+        const p = polar(radius * 0.61, a);
+        ctx.fillText(String(n), p.x, p.y + radius * 0.01);
+      }
+
+      ctx.restore();
+    }
+
+    function drawHand(cx, cy, length, width, angle, color, tail = 0.15) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(-length * tail, -width * 0.42);
+      ctx.lineTo(length * 0.08, -width);
+      ctx.lineTo(length, 0);
+      ctx.lineTo(length * 0.08, width);
+      ctx.lineTo(-length * tail, width * 0.42);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, width * 0.18);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHands(cx, cy, radius, now) {
+      const ms = now.getMilliseconds();
+      const sec = now.getSeconds() + ms / 1000;
+      const min = now.getMinutes() + sec / 60;
+      const hour = (now.getHours() % 12) + min / 60;
+
+      const secAngle = sec * TAU / 60 - Math.PI / 2;
+      const minAngle = min * TAU / 60 - Math.PI / 2;
+      const hourAngle = hour * TAU / 12 - Math.PI / 2;
+
+      drawHand(cx, cy, radius * 0.45, radius * 0.045, hourAngle, "#ead48e", 0.18);
+      drawHand(cx, cy, radius * 0.66, radius * 0.028, minAngle, "#f4e2a6", 0.16);
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(secAngle);
+      ctx.strokeStyle = "#c84535";
+      ctx.lineWidth = Math.max(1.4, radius * 0.008);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.15, 0);
+      ctx.lineTo(radius * 0.72, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(radius * 0.77, 0, radius * 0.025, 0, TAU);
+      ctx.fillStyle = "#c84535";
+      ctx.fill();
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.055, 0, TAU);
+      const cap = ctx.createRadialGradient(cx - radius * 0.02, cy - radius * 0.02, 1, cx, cy, radius * 0.07);
+      cap.addColorStop(0, "#fff1b3");
+      cap.addColorStop(1, "#70521e");
+      ctx.fillStyle = cap;
+      ctx.fill();
+      ctx.strokeStyle = "#22160a";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    function drawCase(cx, cy, radius, scale) {
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+      ctx.shadowBlur = scale * 0.05;
+      ctx.shadowOffsetY = scale * 0.035;
+
+      const w = radius * 2.55;
+      const h = scale * 1.7;
+      const x = cx - w / 2;
+      const y = cy - radius * 1.18;
+      roundedRect(x, y, w, h, radius * 0.16);
+      const wood = ctx.createLinearGradient(x, y, x + w, y + h);
+      wood.addColorStop(0, "#301d12");
+      wood.addColorStop(0.34, "#5b3521");
+      wood.addColorStop(0.67, "#25150d");
+      wood.addColorStop(1, "#674328");
+      ctx.fillStyle = wood;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(2, scale * 0.009);
+      ctx.strokeStyle = "rgba(239, 206, 120, 0.28)";
+      ctx.stroke();
+
+      for (let i = 0; i < 7; i++) {
+        const grainY = y + h * (0.14 + i * 0.11);
+        ctx.beginPath();
+        ctx.moveTo(x + w * 0.08, grainY);
+        ctx.bezierCurveTo(x + w * 0.28, grainY - 10, x + w * 0.58, grainY + 13, x + w * 0.92, grainY - 4);
+        ctx.strokeStyle = "rgba(255, 224, 160, 0.055)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawScene(timestamp) {
+      const time = timestamp / 1000;
+      ctx.clearRect(0, 0, width, height);
+
+      const scale = Math.min(width, height);
+      const radius = Math.min(scale * 0.34, width * 0.27);
+      const cx = width / 2;
+      const cy = Math.max(radius * 1.35, height * 0.42);
+      const now = new Date();
+
+      drawCase(cx, cy, radius, scale);
+
+      const gearY = cy + radius * 0.68;
+      drawPendulum(cx, cy + radius * 0.28, scale, time);
+      drawGear(cx - radius * 0.78, gearY, radius * 0.26, 22, time * 0.55, "#c8a14d", "#392711");
+      drawGear(cx - radius * 0.31, gearY + radius * 0.23, radius * 0.18, 18, -time * 0.86, "#d8b965", "#3f2e15");
+      drawGear(cx + radius * 0.47, gearY + radius * 0.12, radius * 0.29, 28, time * 0.42, "#b68d3f", "#34230f");
+      drawGear(cx + radius * 0.85, gearY - radius * 0.26, radius * 0.16, 16, -time * 1.12, "#d6b55d", "#3c2a13");
+      drawEscapement(cx, cy + radius * 0.9, scale, time);
+
+      drawFace(cx, cy, radius);
+      drawHands(cx, cy, radius, now);
+
+      const shine = ctx.createRadialGradient(cx - radius * 0.45, cy - radius * 0.48, 0, cx, cy, radius * 1.2);
+      shine.addColorStop(0, "rgba(255, 255, 255, 0.16)");
+      shine.addColorStop(0.28, "rgba(255, 255, 255, 0.04)");
+      shine.addColorStop(0.29, "rgba(255, 255, 255, 0)");
+      shine.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.94, 0, TAU);
+      ctx.fillStyle = shine;
+      ctx.fill();
+
+      requestAnimationFrame(drawScene);
+    }
+
+    requestAnimationFrame(drawScene);
+  </script>
+</body>
+</html>
