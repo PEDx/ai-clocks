@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>机械骨架时钟</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; }
+  body {
+    background: radial-gradient(ellipse at center, #2a1f15 0%, #0e0805 80%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: "Georgia", "Times New Roman", serif;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy, R, dpr;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  const side = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+  W = side; H = side;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2; cy = H / 2; R = W * 0.44;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ----- 颜色板 (黄铜机芯风) -----
+const C = {
+  brass:      '#b88a3a',
+  brassHi:    '#f1d088',
+  brassLo:    '#6a4a18',
+  steel:      '#c8ccd0',
+  steelHi:    '#f4f6f8',
+  steelLo:    '#5a6068',
+  copper:     '#a5562b',
+  ruby:       '#c8323a',
+  rubyHi:     '#ff6a6a',
+  bgPlate:    '#2a1c0c',
+  bgPlateHi:  '#3a2a16',
+  ink:        '#1a0e04',
+  cream:      '#efe2c2',
+};
+
+// ============================================================
+// 工具: 绘制齿轮 (含轮齿、辐条、轴孔)
+// ============================================================
+function drawGear(x, y, opts) {
+  const {
+    outerR, rootR, teeth, rotation = 0,
+    bodyColor = C.brass, edgeColor = C.brassLo, hiColor = C.brassHi,
+    spokes = 5, spokeRatio = 0.55, hubR = 0,
+    showJewel = false,
+  } = opts;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // 齿形路径 (梯形齿)
+  ctx.beginPath();
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const a1 = a0 + (Math.PI * 2 / teeth) * 0.32;
+    const a2 = a0 + (Math.PI * 2 / teeth) * 0.50;
+    const a3 = a0 + (Math.PI * 2 / teeth) * 0.68;
+    const a4 = a0 + (Math.PI * 2 / teeth);
+    ctx.lineTo(Math.cos(a0) * rootR, Math.sin(a0) * rootR);
+    ctx.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+    ctx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+    ctx.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+    ctx.lineTo(Math.cos(a4) * rootR, Math.sin(a4) * rootR);
+  }
+  ctx.closePath();
+
+  // 主体填充: 径向渐变模拟金属
+  const grd = ctx.createRadialGradient(-outerR * 0.3, -outerR * 0.3, outerR * 0.05, 0, 0, outerR);
+  grd.addColorStop(0, hiColor);
+  grd.addColorStop(0.45, bodyColor);
+  grd.addColorStop(1, edgeColor);
+  ctx.fillStyle = grd;
+  ctx.fill();
+
+  // 齿廓描边
+  ctx.lineWidth = Math.max(0.6, outerR * 0.012);
+  ctx.strokeStyle = edgeColor;
+  ctx.stroke();
+
+  // 镂空辐条 (切除以露出底板)
+  if (spokes > 0 && rootR > outerR * 0.35) {
+    const innerR = rootR * 0.92;
+    const hubRad = Math.max(hubR, outerR * 0.18);
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < spokes; i++) {
+      const a = (i / spokes) * Math.PI * 2;
+      const halfWidth = (Math.PI / spokes) * spokeRatio * 0.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, innerR, a - halfWidth, a + halfWidth);
+      ctx.arc(0, 0, hubRad, a + halfWidth, a - halfWidth, true);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 内圈、轮毂描边
+    ctx.beginPath();
+    ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(0.6, outerR * 0.008);
+    ctx.strokeStyle = edgeColor;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, hubRad, 0, Math.PI * 2);
+    ctx.fillStyle = bodyColor;
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.4, outerR * 0.006);
+    ctx.strokeStyle = edgeColor;
+    ctx.stroke();
+  }
+
+  // 中心轴孔 (蓝钢/红宝石)
+  const axisR = outerR * 0.06;
+  ctx.beginPath();
+  ctx.arc(0, 0, axisR, 0, Math.PI * 2);
+  if (showJewel) {
+    const jg = ctx.createRadialGradient(-axisR * 0.4, -axisR * 0.4, 0, 0, 0, axisR);
+    jg.addColorStop(0, C.rubyHi);
+    jg.addColorStop(1, C.ruby);
+    ctx.fillStyle = jg;
+  } else {
+    ctx.fillStyle = C.ink;
+  }
+  ctx.fill();
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ============================================================
+// 摆轮 (balance wheel) - 双臂带螺丝配重
+// ============================================================
+function drawBalanceWheel(x, y, r, rotation) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // 外圈
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.lineWidth = r * 0.14;
+  const grd = ctx.createLinearGradient(-r, 0, r, 0);
+  grd.addColorStop(0, C.brassLo);
+  grd.addColorStop(0.5, C.brassHi);
+  grd.addColorStop(1, C.brassLo);
+  ctx.strokeStyle = grd;
+  ctx.stroke();
+
+  // 螺丝配重 (4 颗)
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const sx = Math.cos(a) * r;
+    const sy = Math.sin(a) * r;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = C.steel;
+    ctx.fill();
+    ctx.strokeStyle = C.steelLo;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.08, sy);
+    ctx.lineTo(sx + r * 0.08, sy);
+    ctx.strokeStyle = C.steelLo;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // 双臂横梁
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.92, 0);
+  ctx.lineTo(r * 0.92, 0);
+  ctx.lineWidth = r * 0.10;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = grd;
+  ctx.stroke();
+
+  // 中心轴
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = C.brass;
+  ctx.fill();
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.05, 0, Math.PI * 2);
+  ctx.fillStyle = C.ruby;
+  ctx.fill();
+
+  // 游丝 (双层螺旋示意)
+  ctx.beginPath();
+  for (let t = 0; t <= 1; t += 0.02) {
+    const a = t * Math.PI * 6;
+    const rad = r * 0.18 + t * r * 0.55;
+    const px = Math.cos(a) * rad;
+    const py = Math.sin(a) * rad;
+    if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = 'rgba(220,200,150,0.55)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ============================================================
+// 擒纵叉 (pallet fork) - 跟随秒针节拍摆动
+// ============================================================
+function drawPalletFork(x, y, length, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  // 主体梁
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.25, -length * 0.06);
+  ctx.lineTo(length * 0.85, -length * 0.04);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(length * 0.85, length * 0.04);
+  ctx.lineTo(-length * 0.25, length * 0.06);
+  ctx.closePath();
+  ctx.fillStyle = C.steel;
+  ctx.fill();
+  ctx.strokeStyle = C.steelLo;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // 红宝石擒纵叉头 (两个)
+  ctx.beginPath();
+  ctx.arc(length * 0.95, 0, length * 0.05, 0, Math.PI * 2);
+  ctx.fillStyle = C.ruby;
+  ctx.fill();
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+
+  // 中心轴
+  ctx.beginPath();
+  ctx.arc(0, 0, length * 0.07, 0, Math.PI * 2);
+  ctx.fillStyle = C.brass;
+  ctx.fill();
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, length * 0.025, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ============================================================
+// 时分针 (柳叶/宝玑指针)
+// ============================================================
+function drawHand(angle, length, width, color, edge) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 4;
+
+  // 柳叶形主体
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.15, 0);
+  ctx.quadraticCurveTo(length * 0.25, -width, length * 0.78, -width * 0.3);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(length * 0.78, width * 0.3);
+  ctx.quadraticCurveTo(length * 0.25, width, -length * 0.15, 0);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = edge;
+  ctx.stroke();
+
+  // 中部圆环 (宝玑月)
+  ctx.beginPath();
+  ctx.arc(length * 0.55, 0, width * 1.4, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = edge;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(length * 0.55, 0, width * 0.7, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  // 高光
+  ctx.beginPath();
+  ctx.moveTo(0, -width * 0.2);
+  ctx.lineTo(length * 0.78, -width * 0.05);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = width * 0.18;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// 秒针: 蓝钢细针 + 尾部配重
+function drawSecondHand(angle, length, width) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 2;
+
+  // 主针
+  ctx.beginPath();
+  ctx.moveTo(-length * 0.22, -width * 0.6);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(-length * 0.22, width * 0.6);
+  ctx.closePath();
+  const grd = ctx.createLinearGradient(-length * 0.22, 0, length, 0);
+  grd.addColorStop(0, '#3a5a8a');
+  grd.addColorStop(0.5, '#5a8acc');
+  grd.addColorStop(1, '#1a3a6a');
+  ctx.fillStyle = grd;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+
+  // 尾部配重圆
+  ctx.beginPath();
+  ctx.arc(-length * 0.18, 0, width * 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#3a5a8a';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-length * 0.18, 0, width * 2, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  // 针尖前的小箭头环
+  ctx.beginPath();
+  ctx.arc(length * 0.78, 0, width * 2.2, 0, Math.PI * 2);
+  ctx.strokeStyle = '#5a8acc';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ============================================================
+// 主绘制
+// ============================================================
+function drawClock() {
+  const now = new Date();
+  const ms  = now.getMilliseconds();
+  const sec = now.getSeconds() + ms / 1000;
+  const min = now.getMinutes() + sec / 60;
+  const hr  = (now.getHours() % 12) + min / 60;
+
+  // 角度 (12 点为 0, 顺时针)
+  const hrA  = hr  / 12 * Math.PI * 2 - Math.PI / 2;
+  const minA = min / 60 * Math.PI * 2 - Math.PI / 2;
+  const secA = sec / 60 * Math.PI * 2 - Math.PI / 2;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // ---------------- 表盘底板 (黄铜机板带圆形纹理) ----------------
+  // 外环阴影
+  const shadow = ctx.createRadialGradient(cx, cy, R * 0.95, cx, cy, R * 1.18);
+  shadow.addColorStop(0, 'rgba(0,0,0,0.0)');
+  shadow.addColorStop(1, 'rgba(0,0,0,0.7)');
+  ctx.fillStyle = shadow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 外圈 (磨砂钢)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.10, 0, Math.PI * 2);
+  const ringGrd = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, 0, cx, cy, R * 1.10);
+  ringGrd.addColorStop(0, '#5a4a2a');
+  ringGrd.addColorStop(0.6, '#3a2a16');
+  ringGrd.addColorStop(1, '#1a0e04');
+  ctx.fillStyle = ringGrd;
+  ctx.fill();
+
+  // 内圈装饰线
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.10, 0, Math.PI * 2);
+  ctx.strokeStyle = C.brass;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 机芯主底板 (黄铜)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.0, 0, Math.PI * 2);
+  const plateGrd = ctx.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.1, cx, cy, R * 1.0);
+  plateGrd.addColorStop(0, '#d4a55a');
+  plateGrd.addColorStop(0.55, '#a07530');
+  plateGrd.addColorStop(1, '#5a3a14');
+  ctx.fillStyle = plateGrd;
+  ctx.fill();
+
+  // 底板的"鱼鳞纹" (côtes de Genève / 圆点纹)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.0, 0, Math.PI * 2);
+  ctx.clip();
+  for (let r = R * 0.18; r <= R * 0.98; r += R * 0.06) {
+    const dots = Math.max(8, Math.floor(r * 0.45));
+    for (let i = 0; i < dots; i++) {
+      const a = (i / dots) * Math.PI * 2;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      ctx.beginPath();
+      ctx.arc(x, y, R * 0.012, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,220,150,0.06)';
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // ---------------- 后景齿轮系 (慢速旋转, 装饰) ----------------
+  // 大主齿轮 (左下) - 12 小时一圈
+  const slowRot = (now.getHours() % 12 + min / 60) / 12 * Math.PI * 2;
+  drawGear(cx - R * 0.42, cy + R * 0.42, {
+    outerR: R * 0.30, rootR: R * 0.26, teeth: 36,
+    rotation: slowRot, spokes: 5, hubR: R * 0.05,
+    showJewel: true,
+  });
+
+  // 中速齿轮 (右下) - 1 分钟一圈
+  drawGear(cx + R * 0.42, cy + R * 0.40, {
+    outerR: R * 0.22, rootR: R * 0.19, teeth: 24,
+    rotation: -minA - Math.PI / 2, spokes: 4, hubR: R * 0.04,
+  });
+
+  // 小快齿轮 (右上) - 6 秒一圈, 与擒纵联动
+  const fastRot = (sec / 6) * Math.PI * 2;
+  drawGear(cx + R * 0.45, cy - R * 0.42, {
+    outerR: R * 0.16, rootR: R * 0.13, teeth: 20,
+    rotation: fastRot, spokes: 3, hubR: R * 0.03,
+    showJewel: true,
+  });
+
+  // 第四齿轮 (左上, 不可见辐条小齿)
+  drawGear(cx - R * 0.45, cy - R * 0.40, {
+    outerR: R * 0.13, rootR: R * 0.10, teeth: 18,
+    rotation: -fastRot * 1.4, spokes: 0,
+  });
+
+  // ---------------- 轴承螺丝 (装饰孔) ----------------
+  const screwPositions = [
+    [cx + R * 0.85, cy], [cx - R * 0.85, cy],
+    [cx, cy + R * 0.85], [cx, cy - R * 0.85],
+    [cx + R * 0.60, cy + R * 0.60], [cx - R * 0.60, cy - R * 0.60],
+    [cx + R * 0.60, cy - R * 0.60], [cx - R * 0.60, cy + R * 0.60],
+  ];
+  for (const [sx, sy] of screwPositions) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, R * 0.025, 0, Math.PI * 2);
+    const sg = ctx.createRadialGradient(sx - 1, sy - 1, 0, sx, sy, R * 0.025);
+    sg.addColorStop(0, C.steelHi);
+    sg.addColorStop(1, C.steelLo);
+    ctx.fillStyle = sg;
+    ctx.fill();
+    ctx.strokeStyle = C.brassLo;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // 一字槽
+    ctx.beginPath();
+    const slotA = (sx + sy) * 0.07;
+    ctx.moveTo(sx + Math.cos(slotA) * R * 0.018, sy + Math.sin(slotA) * R * 0.018);
+    ctx.lineTo(sx - Math.cos(slotA) * R * 0.018, sy - Math.sin(slotA) * R * 0.018);
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  // ---------------- 表盘窗 (透明圆形露出刻度区) ----------------
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.78, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20,12,4,0.55)';
+  ctx.fill();
+  ctx.strokeStyle = C.brass;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // 内描边
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.76, 0, Math.PI * 2);
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.restore();
+
+  // ---------------- 60 分刻度 + 罗马数字 ----------------
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const oR = R * 0.76;
+    const iR = isHour ? R * 0.66 : R * 0.72;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * iR, cy + Math.sin(a) * iR);
+    ctx.lineTo(cx + Math.cos(a) * oR, cy + Math.sin(a) * oR);
+    ctx.strokeStyle = isHour ? C.cream : 'rgba(239,226,194,0.45)';
+    ctx.lineWidth = isHour ? R * 0.012 : R * 0.004;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // 罗马数字
+  const romans = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+  ctx.fillStyle = C.cream;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${R * 0.085}px "Georgia", "Times New Roman", serif`;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const tr = R * 0.58;
+    const tx = cx + Math.cos(a) * tr;
+    const ty = cy + Math.sin(a) * tr;
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 3;
+    ctx.fillText(romans[i], tx, ty);
+    ctx.shadowColor = 'transparent';
+  }
+
+  // ---------------- 6 点位置: 摆轮 (透过表盘窗能看到) ----------------
+  // 摆轮以约 4Hz 摆动 (机械表常见频率), 这里用秒钟节拍可视化
+  const balanceAmp = Math.PI * 0.85;
+  const balanceFreq = 4; // 每秒来回 4 次
+  const balanceRot = Math.sin(sec * Math.PI * 2 * balanceFreq) * balanceAmp;
+  drawBalanceWheel(cx, cy + R * 0.42, R * 0.14, balanceRot);
+
+  // 擒纵叉 (在摆轮上方一点) - 与摆轮反相摆动, 振幅小
+  const palletAng = Math.cos(sec * Math.PI * 2 * balanceFreq) * 0.18;
+  drawPalletFork(cx + R * 0.07, cy + R * 0.25, R * 0.12, palletAng - Math.PI * 0.5);
+
+  // ---------------- 中心齿轮 (与时针同轴, 装饰用) ----------------
+  drawGear(cx, cy, {
+    outerR: R * 0.13, rootR: R * 0.10, teeth: 18,
+    rotation: hrA - Math.PI / 2,
+    spokes: 4, hubR: R * 0.025,
+    bodyColor: C.brass, edgeColor: C.brassLo, hiColor: C.brassHi,
+  });
+
+  // ---------------- 指针 ----------------
+  drawHand(hrA,  R * 0.40, R * 0.038, C.steel, C.steelLo);
+  drawHand(minA, R * 0.62, R * 0.026, C.cream, C.brassLo);
+  drawSecondHand(secA, R * 0.70, R * 0.008);
+
+  // ---------------- 中心螺帽 ----------------
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.028, 0, Math.PI * 2);
+  const capGrd = ctx.createRadialGradient(cx - 2, cy - 2, 0, cx, cy, R * 0.028);
+  capGrd.addColorStop(0, C.brassHi);
+  capGrd.addColorStop(1, C.brassLo);
+  ctx.fillStyle = capGrd;
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 4;
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = C.brassLo;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.010, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  // ---------------- 玻璃高光 (轻微反光) ----------------
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.0, 0, Math.PI * 2);
+  ctx.clip();
+  const glass = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  glass.addColorStop(0, 'rgba(255,255,255,0.10)');
+  glass.addColorStop(0.4, 'rgba(255,255,255,0.0)');
+  glass.addColorStop(0.6, 'rgba(255,255,255,0.0)');
+  glass.addColorStop(1, 'rgba(255,255,255,0.04)');
+  ctx.fillStyle = glass;
+  ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+  ctx.restore();
+
+  requestAnimationFrame(drawClock);
+}
+
+drawClock();
+</script>
+</body>
+</html>

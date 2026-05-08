@@ -452,7 +452,8 @@
           <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
         </svg>
       </div>
-      <div class="prompt-text">Help me draw a mechanical clock using cavans and generate an HTML file that I can open directly in the browser.</div>
+      <div class="prompt-text">Help me draw a mechanical clock using cavans and generate an HTML file that I can open
+        directly in the browser.</div>
     </div>
     <div class="prompt-toolbar">
       <div class="prompt-actions" aria-hidden="true">
@@ -493,15 +494,16 @@
   <script>
     const models = [
       {
+        name: "Claude Opus 4.7",
+        path: "./models/claude-opus-4.7/index.html",
+        stats: { lines: 624, codeLines: 501, blankLines: 60, commentLines: 63, functions: 7, scripts: 1, styles: 1, bytes: 18674 }
+      },
+      {
         name: "Claude Opus 4.6",
         path: "./models/claude-opus-4.6/index.html",
         stats: { lines: 286, codeLines: 249, blankLines: 18, commentLines: 19, functions: 5, scripts: 1, styles: 1, bytes: 8528 }
       },
-      {
-        name: "DeepSeek V4 Pro",
-        path: "./models/deepseek-v4-pro/index.html",
-        stats: { lines: 383, codeLines: 311, blankLines: 41, commentLines: 31, functions: 3, scripts: 1, styles: 1, bytes: 10394 }
-      },
+
       {
         name: "Codex GPT 5.5",
         path: "./models/codex-gpt-5.5/index.html",
@@ -523,6 +525,16 @@
         stats: { lines: 275, codeLines: 213, blankLines: 35, commentLines: 27, functions: 3, scripts: 1, styles: 1, bytes: 7968 }
       },
       {
+        name: "DeepSeek V4 Pro",
+        path: "./models/deepseek-v4-pro/index.html",
+        stats: { lines: 383, codeLines: 311, blankLines: 41, commentLines: 31, functions: 3, scripts: 1, styles: 1, bytes: 10394 }
+      },
+      {
+        name: "Kimi 2.6",
+        path: "./models/kimi-2.6/index.html",
+        stats: { lines: 309, codeLines: 248, blankLines: 45, commentLines: 16, functions: 9, scripts: 1, styles: 1, bytes: 10120 }
+      },
+      {
         name: "Qwen 3.6 35B",
         path: "./models/qwen-3.6-35b/index.html",
         stats: { lines: 255, codeLines: 212, blankLines: 26, commentLines: 17, functions: 4, scripts: 1, styles: 1, bytes: 7047 }
@@ -532,11 +544,7 @@
         path: "./models/qwen-3.6-27b/index.html",
         stats: { lines: 402, codeLines: 332, blankLines: 48, commentLines: 22, functions: 14, scripts: 1, styles: 1, bytes: 11348 }
       },
-      {
-        name: "Kimi 2.6",
-        path: "./models/kimi-2.6/index.html",
-        stats: { lines: 309, codeLines: 248, blankLines: 45, commentLines: 16, functions: 9, scripts: 1, styles: 1, bytes: 10120 }
-      },
+
       {
         name: "MiniMax 2.7",
         path: "./models/minimax-2.7/index.html",

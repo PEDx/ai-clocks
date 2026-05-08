@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/ninebot/project/ai-clocks/models/**)",
+      "Read(//Users/ninebot/project/ai-clocks/**)"
+    ]
+  }
+}
