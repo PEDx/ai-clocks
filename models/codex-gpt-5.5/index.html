@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,10 +7,8 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #101214;
-      --panel: #181c1f;
-      --metal: #c9b47a;
-      --ink: #f4efe1;
+      --page: #080b0d;
+      --ink: #f4ead2;
     }
 
     * {
@@ -24,7 +22,8 @@
       margin: 0;
       overflow: hidden;
       background:
-        radial-gradient(circle at 50% 42%, #293039 0%, #15191d 45%, #08090a 100%);
+        radial-gradient(circle at 50% 32%, rgba(60, 85, 95, 0.36), transparent 32%),
+        linear-gradient(145deg, #050607, #14191b 45%, #070809);
       font-family: Georgia, "Times New Roman", serif;
     }
 
@@ -33,16 +32,30 @@
       width: 100vw;
       height: 100vh;
     }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 <body>
-  <canvas id="clock" aria-label="Mechanical analog clock"></canvas>
+  <canvas id="clock" aria-label="Animated mechanical clock"></canvas>
+  <p class="sr-only">Animated mechanical clock drawn with HTML canvas.</p>
 
   <script>
     const canvas = document.getElementById("clock");
     const ctx = canvas.getContext("2d");
-
     const TAU = Math.PI * 2;
+    const roman = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
+
     let width = 0;
     let height = 0;
     let dpr = 1;
@@ -51,8 +64,8 @@
       dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -79,79 +92,358 @@
       ctx.closePath();
     }
 
-    function drawGear(x, y, radius, teeth, rotation, fill, stroke) {
+    function glowCircle(x, y, r, inner, outer, alpha) {
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r);
+      glow.addColorStop(0, inner);
+      glow.addColorStop(0.58, outer);
+      glow.addColorStop(1, `rgba(0, 0, 0, ${alpha})`);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+    }
+
+    function drawBackground(t) {
+      ctx.clearRect(0, 0, width, height);
+
+      const g = ctx.createLinearGradient(0, 0, width, height);
+      g.addColorStop(0, "#040506");
+      g.addColorStop(0.42, "#12191c");
+      g.addColorStop(1, "#050607");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+
+      const rayCount = 28;
+      const cx = width / 2;
+      const cy = height * 0.42;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(t * 0.018);
+      for (let i = 0; i < rayCount; i++) {
+        ctx.rotate(TAU / rayCount);
+        const ray = ctx.createLinearGradient(0, 0, Math.max(width, height), 0);
+        ray.addColorStop(0, "rgba(125, 173, 177, 0.02)");
+        ray.addColorStop(0.32, "rgba(220, 192, 112, 0.018)");
+        ray.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = ray;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.max(width, height), -8);
+        ctx.lineTo(Math.max(width, height), 8);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      const vignette = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.78);
+      vignette.addColorStop(0, "rgba(255, 255, 255, 0.03)");
+      vignette.addColorStop(0.62, "rgba(0, 0, 0, 0.08)");
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.68)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    function drawScrew(x, y, r, angle) {
+      const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, 0, x, y, r * 1.4);
+      g.addColorStop(0, "#e9f1ec");
+      g.addColorStop(0.5, "#69767a");
+      g.addColorStop(1, "#15191b");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = Math.max(1, r * 0.12);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.strokeStyle = "rgba(8, 10, 12, 0.78)";
+      ctx.lineWidth = Math.max(1.2, r * 0.18);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.62, 0);
+      ctx.lineTo(r * 0.62, 0);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCase(cx, cy, radius, clockHeight) {
+      const caseWidth = radius * 2.68;
+      const x = cx - caseWidth / 2;
+      const y = cy - radius * 1.18;
+      const h = clockHeight;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+      ctx.shadowBlur = radius * 0.2;
+      ctx.shadowOffsetY = radius * 0.12;
+      roundedRect(x, y, caseWidth, h, radius * 0.18);
+      const body = ctx.createLinearGradient(x, y, x + caseWidth, y + h);
+      body.addColorStop(0, "#0c1113");
+      body.addColorStop(0.18, "#293238");
+      body.addColorStop(0.5, "#111719");
+      body.addColorStop(0.72, "#344347");
+      body.addColorStop(1, "#0a0d0f");
+      ctx.fillStyle = body;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(2, radius * 0.016);
+      ctx.strokeStyle = "rgba(211, 220, 211, 0.23)";
+      ctx.stroke();
+
+      roundedRect(x + radius * 0.12, y + radius * 0.12, caseWidth - radius * 0.24, h - radius * 0.24, radius * 0.12);
+      ctx.strokeStyle = "rgba(235, 207, 126, 0.18)";
+      ctx.lineWidth = Math.max(1, radius * 0.008);
+      ctx.stroke();
+
+      const railG = ctx.createLinearGradient(x, y, x + caseWidth, y);
+      railG.addColorStop(0, "rgba(255, 255, 255, 0)");
+      railG.addColorStop(0.5, "rgba(255, 255, 255, 0.16)");
+      railG.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = railG;
+      ctx.fillRect(x + radius * 0.18, y + radius * 0.18, caseWidth - radius * 0.36, Math.max(2, radius * 0.018));
+      ctx.fillRect(x + radius * 0.18, y + h - radius * 0.22, caseWidth - radius * 0.36, Math.max(2, radius * 0.018));
+
+      const screwR = Math.max(3, radius * 0.035);
+      drawScrew(x + radius * 0.24, y + radius * 0.24, screwR, -0.7);
+      drawScrew(x + caseWidth - radius * 0.24, y + radius * 0.24, screwR, 0.45);
+      drawScrew(x + radius * 0.24, y + h - radius * 0.24, screwR, 0.25);
+      drawScrew(x + caseWidth - radius * 0.24, y + h - radius * 0.24, screwR, -0.35);
+      ctx.restore();
+    }
+
+    function drawPlate(cx, cy, radius) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.04, 0, TAU);
+      const back = ctx.createRadialGradient(-radius * 0.35, -radius * 0.4, 0, 0, 0, radius * 1.15);
+      back.addColorStop(0, "#39454a");
+      back.addColorStop(0.46, "#151c20");
+      back.addColorStop(1, "#050607");
+      ctx.fillStyle = back;
+      ctx.fill();
+
+      ctx.lineWidth = Math.max(2, radius * 0.018);
+      ctx.strokeStyle = "rgba(219, 197, 119, 0.3)";
+      ctx.stroke();
+
+      for (let i = 0; i < 42; i++) {
+        const a = i * TAU / 42;
+        const p1 = polar(radius * 0.17, a);
+        const p2 = polar(radius * 0.98, a);
+        ctx.strokeStyle = i % 7 === 0 ? "rgba(241, 210, 122, 0.07)" : "rgba(255, 255, 255, 0.025)";
+        ctx.lineWidth = i % 7 === 0 ? Math.max(1, radius * 0.004) : 1;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawBridge(points, widthValue) {
+      if (!points.length) return;
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = widthValue;
+      const g = ctx.createLinearGradient(points[0].x, points[0].y, points[points.length - 1].x, points[points.length - 1].y);
+      g.addColorStop(0, "#566266");
+      g.addColorStop(0.38, "#d6d0bd");
+      g.addColorStop(1, "#354044");
+      ctx.strokeStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+
+      ctx.lineWidth = Math.max(1, widthValue * 0.18);
+      ctx.strokeStyle = "rgba(5, 7, 8, 0.42)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawGear(x, y, radius, teeth, rotation, tone, holeTone) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rotation);
 
-      const inner = radius * 0.72;
-      const outer = radius;
-      const root = radius * 0.84;
-
+      const root = radius * 0.83;
+      const bevel = radius * 0.73;
       ctx.beginPath();
       for (let i = 0; i < teeth * 2; i++) {
-        const a = (i / (teeth * 2)) * TAU;
-        const r = i % 2 === 0 ? outer : root;
+        const a = i * TAU / (teeth * 2);
+        const r = i % 2 === 0 ? radius : root;
         const p = polar(r, a);
         if (i === 0) ctx.moveTo(p.x, p.y);
         else ctx.lineTo(p.x, p.y);
       }
       ctx.closePath();
 
-      const gearGrad = ctx.createRadialGradient(-radius * 0.25, -radius * 0.35, radius * 0.1, 0, 0, radius);
-      gearGrad.addColorStop(0, "#fff1bb");
-      gearGrad.addColorStop(0.34, fill);
-      gearGrad.addColorStop(1, "#765f2a");
-      ctx.fillStyle = gearGrad;
+      const brass = ctx.createRadialGradient(-radius * 0.32, -radius * 0.36, radius * 0.05, 0, 0, radius);
+      brass.addColorStop(0, "#fff4bd");
+      brass.addColorStop(0.32, tone);
+      brass.addColorStop(0.72, "#967337");
+      brass.addColorStop(1, "#463016");
+      ctx.fillStyle = brass;
       ctx.fill();
-      ctx.lineWidth = Math.max(1.4, radius * 0.035);
-      ctx.strokeStyle = stroke;
+      ctx.lineWidth = Math.max(1, radius * 0.038);
+      ctx.strokeStyle = "rgba(16, 11, 5, 0.8)";
       ctx.stroke();
 
-      ctx.globalCompositeOperation = "destination-out";
       ctx.beginPath();
-      ctx.arc(0, 0, inner * 0.36, 0, TAU);
-      ctx.fill();
+      ctx.arc(0, 0, bevel, 0, TAU);
+      ctx.strokeStyle = "rgba(255, 236, 173, 0.24)";
+      ctx.lineWidth = Math.max(1, radius * 0.022);
+      ctx.stroke();
+
+      ctx.fillStyle = holeTone;
+      ctx.strokeStyle = "rgba(37, 27, 12, 0.8)";
+      ctx.lineWidth = Math.max(1, radius * 0.014);
       for (let i = 0; i < 6; i++) {
         ctx.save();
-        ctx.rotate((i / 6) * TAU);
-        roundedRect(inner * 0.34, -radius * 0.065, radius * 0.45, radius * 0.13, radius * 0.06);
+        ctx.rotate(i * TAU / 6);
+        roundedRect(radius * 0.22, -radius * 0.055, radius * 0.42, radius * 0.11, radius * 0.05);
         ctx.fill();
+        ctx.stroke();
         ctx.restore();
       }
-      ctx.globalCompositeOperation = "source-over";
 
       ctx.beginPath();
-      ctx.arc(0, 0, inner * 0.36, 0, TAU);
-      ctx.lineWidth = Math.max(1, radius * 0.025);
-      ctx.strokeStyle = "rgba(52, 39, 18, 0.75)";
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.1, 0, TAU);
-      ctx.fillStyle = "#3f3323";
+      ctx.arc(0, 0, radius * 0.2, 0, TAU);
+      ctx.fillStyle = holeTone;
       ctx.fill();
-      ctx.strokeStyle = "#e1c776";
+      ctx.strokeStyle = "rgba(255, 230, 154, 0.36)";
+      ctx.lineWidth = Math.max(1, radius * 0.018);
       ctx.stroke();
 
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.075, 0, TAU);
+      ctx.fillStyle = "#263238";
+      ctx.fill();
+      ctx.strokeStyle = "#dac57d";
+      ctx.lineWidth = Math.max(1, radius * 0.014);
+      ctx.stroke();
       ctx.restore();
     }
 
-    function drawPendulum(cx, cy, scale, time) {
-      const swing = Math.sin(time * 2.55) * 0.28;
-      const topY = cy - scale * 0.08;
-      const len = scale * 0.82;
+    function drawMainspring(x, y, radius, t) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(t * 0.05);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, TAU);
+      const barrel = ctx.createRadialGradient(-radius * 0.35, -radius * 0.35, 0, 0, 0, radius);
+      barrel.addColorStop(0, "#f7ecb5");
+      barrel.addColorStop(0.44, "#85764f");
+      barrel.addColorStop(1, "#252b2c");
+      ctx.fillStyle = barrel;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(243, 221, 143, 0.48)";
+      ctx.lineWidth = Math.max(2, radius * 0.03);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(12, 14, 14, 0.58)";
+      ctx.lineWidth = Math.max(2, radius * 0.025);
+      ctx.beginPath();
+      for (let a = 0; a < TAU * 3.25; a += 0.1) {
+        const r = radius * (0.12 + a / (TAU * 3.75));
+        const p = polar(r, a);
+        if (a === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.16, 0, TAU);
+      ctx.fillStyle = "#1b2022";
+      ctx.fill();
+      ctx.strokeStyle = "#d7c177";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawJewels(points, radius, t) {
+      points.forEach((p, i) => {
+        const pulse = 0.82 + Math.sin(t * 2.1 + i) * 0.18;
+        const g = ctx.createRadialGradient(p.x - radius * 0.28, p.y - radius * 0.32, 0, p.x, p.y, radius);
+        g.addColorStop(0, `rgba(255, 205, 205, ${0.92 * pulse})`);
+        g.addColorStop(0.45, "#b23a36");
+        g.addColorStop(1, "#401111");
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, TAU);
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 232, 154, 0.42)";
+        ctx.lineWidth = Math.max(1, radius * 0.12);
+        ctx.stroke();
+      });
+    }
+
+    function drawEscapement(cx, cy, radius, t) {
+      const wheelX = cx;
+      const wheelY = cy + radius * 0.64;
+      const r = radius * 0.145;
+      const snap = Math.floor(t * 4) % 2 === 0 ? -0.22 : 0.22;
+
+      drawGear(wheelX, wheelY, r, 15, -t * 2.6, "#d6bc70", "#12191b");
 
       ctx.save();
-      ctx.translate(cx, topY);
+      ctx.translate(wheelX, wheelY - radius * 0.18);
+      ctx.rotate(snap);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#d9d0b6";
+      ctx.lineWidth = Math.max(4, radius * 0.024);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.2, radius * 0.015);
+      ctx.lineTo(0, -radius * 0.052);
+      ctx.lineTo(radius * 0.2, radius * 0.015);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#caad61";
+      ctx.lineWidth = Math.max(2, radius * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.2, radius * 0.015);
+      ctx.lineTo(-radius * 0.26, radius * 0.085);
+      ctx.moveTo(radius * 0.2, radius * 0.015);
+      ctx.lineTo(radius * 0.26, radius * 0.085);
+      ctx.stroke();
+
+      ctx.fillStyle = "#b63a38";
+      ctx.beginPath();
+      ctx.arc(0, -radius * 0.052, radius * 0.028, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 230, 158, 0.5)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPendulum(cx, cy, radius, caseBottom, t) {
+      const swing = Math.sin(t * 2.35) * 0.26;
+      const anchorY = cy + radius * 0.78;
+      const maxLen = Math.max(radius * 0.58, caseBottom - anchorY - radius * 0.2);
+      const len = Math.min(radius * 1.42, maxLen);
+
+      ctx.save();
+      ctx.translate(cx, anchorY);
       ctx.rotate(swing);
 
-      const rodGrad = ctx.createLinearGradient(-8, 0, 8, 0);
-      rodGrad.addColorStop(0, "#6f5b32");
-      rodGrad.addColorStop(0.5, "#efd98d");
-      rodGrad.addColorStop(1, "#614d28");
-      ctx.strokeStyle = rodGrad;
-      ctx.lineWidth = Math.max(4, scale * 0.012);
+      const rod = ctx.createLinearGradient(-8, 0, 8, 0);
+      rod.addColorStop(0, "#2f3739");
+      rod.addColorStop(0.5, "#f2d681");
+      rod.addColorStop(1, "#2c3436");
+      ctx.strokeStyle = rod;
+      ctx.lineWidth = Math.max(4, radius * 0.022);
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -159,118 +451,160 @@
       ctx.stroke();
 
       ctx.translate(0, len);
-      const bob = scale * 0.115;
-      const bobGrad = ctx.createRadialGradient(-bob * 0.35, -bob * 0.45, bob * 0.1, 0, 0, bob * 1.1);
-      bobGrad.addColorStop(0, "#fff3b3");
-      bobGrad.addColorStop(0.42, "#d4b461");
-      bobGrad.addColorStop(1, "#5a4522");
+      const bobR = radius * 0.18;
+      const bob = ctx.createRadialGradient(-bobR * 0.35, -bobR * 0.48, 0, 0, 0, bobR * 1.15);
+      bob.addColorStop(0, "#fff3b4");
+      bob.addColorStop(0.42, "#caa85c");
+      bob.addColorStop(1, "#32383a");
+      ctx.fillStyle = bob;
       ctx.beginPath();
-      ctx.ellipse(0, 0, bob * 0.84, bob, 0, 0, TAU);
-      ctx.fillStyle = bobGrad;
+      ctx.ellipse(0, 0, bobR * 0.82, bobR, 0, 0, TAU);
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(40, 27, 11, 0.75)";
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    function drawEscapement(cx, cy, scale, time) {
-      const tick = Math.floor(time * 2);
-      const snap = (tick % 2 === 0 ? -1 : 1) * 0.14;
-      const wheelR = scale * 0.13;
-
-      drawGear(cx, cy - scale * 0.16, wheelR, 15, -time * 1.8, "#d0ad58", "#3c2a13");
-
-      ctx.save();
-      ctx.translate(cx, cy - scale * 0.03);
-      ctx.rotate(snap);
-      ctx.lineWidth = Math.max(3, scale * 0.009);
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "#d9c177";
-      ctx.beginPath();
-      ctx.moveTo(-scale * 0.15, -scale * 0.025);
-      ctx.lineTo(0, scale * 0.03);
-      ctx.lineTo(scale * 0.15, -scale * 0.025);
+      ctx.strokeStyle = "rgba(12, 13, 13, 0.82)";
+      ctx.lineWidth = Math.max(1.5, radius * 0.012);
       ctx.stroke();
 
-      ctx.fillStyle = "#f2d987";
+      const highlight = ctx.createLinearGradient(-bobR, -bobR, bobR, bobR);
+      highlight.addColorStop(0, "rgba(255, 255, 255, 0.35)");
+      highlight.addColorStop(0.5, "rgba(255, 255, 255, 0)");
+      highlight.addColorStop(1, "rgba(0, 0, 0, 0.25)");
+      ctx.fillStyle = highlight;
       ctx.beginPath();
-      ctx.arc(0, scale * 0.03, scale * 0.018, 0, TAU);
+      ctx.ellipse(0, 0, bobR * 0.82, bobR, 0, 0, TAU);
       ctx.fill();
       ctx.restore();
     }
 
-    function drawFace(cx, cy, radius) {
+    function drawMovement(cx, cy, radius, t) {
+      drawPlate(cx, cy, radius);
+
+      const points = [
+        { x: cx - radius * 0.6, y: cy - radius * 0.18 },
+        { x: cx - radius * 0.2, y: cy + radius * 0.16 },
+        { x: cx + radius * 0.3, y: cy - radius * 0.08 },
+        { x: cx + radius * 0.63, y: cy + radius * 0.22 }
+      ];
+      drawBridge(points, Math.max(6, radius * 0.042));
+
+      const holeTone = "#11181b";
+      drawMainspring(cx - radius * 0.5, cy - radius * 0.18, radius * 0.205, t);
+      drawGear(cx - radius * 0.18, cy + radius * 0.11, radius * 0.19, 21, -t * 0.92, "#d1ae5a", holeTone);
+      drawGear(cx + radius * 0.18, cy - radius * 0.16, radius * 0.16, 18, t * 1.32, "#d8bf78", holeTone);
+      drawGear(cx + radius * 0.47, cy + radius * 0.1, radius * 0.21, 23, -t * 0.72, "#c69b47", holeTone);
+      drawGear(cx + radius * 0.02, cy + radius * 0.36, radius * 0.135, 17, t * 1.8, "#e1c874", holeTone);
+      drawGear(cx - radius * 0.42, cy + radius * 0.34, radius * 0.155, 19, -t * 1.18, "#b98d41", holeTone);
+
+      drawJewels([
+        { x: cx - radius * 0.18, y: cy + radius * 0.11 },
+        { x: cx + radius * 0.18, y: cy - radius * 0.16 },
+        { x: cx + radius * 0.47, y: cy + radius * 0.1 },
+        { x: cx + radius * 0.02, y: cy + radius * 0.36 }
+      ], Math.max(3, radius * 0.025), t);
+    }
+
+    function drawDial(cx, cy, radius) {
       ctx.save();
       ctx.translate(cx, cy);
 
-      const outer = ctx.createRadialGradient(-radius * 0.35, -radius * 0.45, radius * 0.1, 0, 0, radius * 1.1);
-      outer.addColorStop(0, "#f7eab2");
-      outer.addColorStop(0.26, "#c9a450");
-      outer.addColorStop(0.7, "#6b5426");
-      outer.addColorStop(1, "#20160b");
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 1.05, 0, TAU);
-      ctx.fillStyle = outer;
+      ctx.arc(0, 0, radius * 0.9, 0, TAU);
+      const dial = ctx.createRadialGradient(0, 0, radius * 0.18, 0, 0, radius * 0.9);
+      dial.addColorStop(0, "rgba(21, 26, 28, 0.64)");
+      dial.addColorStop(0.55, "rgba(12, 16, 18, 0.54)");
+      dial.addColorStop(1, "rgba(2, 3, 4, 0.8)");
+      ctx.fillStyle = dial;
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.95, 0, TAU);
-      const face = ctx.createRadialGradient(0, 0, radius * 0.15, 0, 0, radius);
-      face.addColorStop(0, "rgba(39, 43, 42, 0.94)");
-      face.addColorStop(0.74, "rgba(18, 21, 22, 0.9)");
-      face.addColorStop(1, "rgba(6, 7, 8, 0.96)");
-      ctx.fillStyle = face;
-      ctx.fill();
+      ctx.arc(0, 0, radius * 0.94, 0, TAU);
+      ctx.lineWidth = Math.max(5, radius * 0.04);
+      const rim = ctx.createLinearGradient(-radius, -radius, radius, radius);
+      rim.addColorStop(0, "#eff1e6");
+      rim.addColorStop(0.2, "#66777d");
+      rim.addColorStop(0.52, "#f1cf75");
+      rim.addColorStop(0.82, "#3c4649");
+      rim.addColorStop(1, "#f4e4a7");
+      ctx.strokeStyle = rim;
+      ctx.stroke();
 
       ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.82, 0, TAU);
-      ctx.strokeStyle = "rgba(236, 211, 128, 0.24)";
-      ctx.lineWidth = Math.max(1, radius * 0.012);
+      ctx.arc(0, 0, radius * 0.76, 0, TAU);
+      ctx.strokeStyle = "rgba(232, 215, 154, 0.42)";
+      ctx.lineWidth = Math.max(1, radius * 0.008);
       ctx.stroke();
 
       for (let i = 0; i < 60; i++) {
-        const a = i * TAU / 60 - Math.PI / 2;
+        const angle = i * TAU / 60 - Math.PI / 2;
         const major = i % 5 === 0;
-        const p1 = polar(radius * (major ? 0.73 : 0.78), a);
-        const p2 = polar(radius * 0.87, a);
+        const outer = polar(radius * 0.84, angle);
+        const inner = polar(radius * (major ? 0.72 : 0.79), angle);
         ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = major ? "#efe0a1" : "rgba(239, 224, 161, 0.38)";
-        ctx.lineWidth = major ? Math.max(2, radius * 0.018) : Math.max(1, radius * 0.006);
+        ctx.moveTo(inner.x, inner.y);
+        ctx.lineTo(outer.x, outer.y);
+        ctx.strokeStyle = major ? "#f1e6bd" : "rgba(242, 230, 190, 0.38)";
+        ctx.lineWidth = major ? Math.max(2, radius * 0.017) : Math.max(1, radius * 0.006);
         ctx.lineCap = "round";
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#f5e7b6";
+      ctx.fillStyle = "#fbf0cb";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `${Math.max(18, radius * 0.13)}px Georgia, serif`;
-      for (let n = 1; n <= 12; n++) {
-        const a = n * TAU / 12 - Math.PI / 2;
-        const p = polar(radius * 0.61, a);
-        ctx.fillText(String(n), p.x, p.y + radius * 0.01);
+      ctx.font = `${Math.max(15, radius * 0.09)}px Georgia, serif`;
+      for (let i = 0; i < 12; i++) {
+        const angle = i * TAU / 12 - Math.PI / 2;
+        const p = polar(radius * 0.59, angle);
+        ctx.fillText(roman[i], p.x, p.y + radius * 0.006);
       }
 
       ctx.restore();
     }
 
-    function drawHand(cx, cy, length, width, angle, color, tail = 0.15) {
+    function drawOpenHeart(cx, cy, radius, t) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      ctx.beginPath();
+      ctx.arc(0, radius * 0.32, radius * 0.21, 0, TAU);
+      ctx.fillStyle = "rgba(2, 3, 4, 0.55)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(236, 209, 125, 0.72)";
+      ctx.lineWidth = Math.max(2, radius * 0.014);
+      ctx.stroke();
+
+      ctx.rotate(Math.sin(t * 5.3) * 0.22);
+      ctx.strokeStyle = "#d7d3c4";
+      ctx.lineWidth = Math.max(2, radius * 0.012);
+      ctx.beginPath();
+      ctx.arc(0, radius * 0.32, radius * 0.15, 0.25, TAU - 0.25);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-radius * 0.15, radius * 0.32);
+      ctx.lineTo(radius * 0.15, radius * 0.32);
+      ctx.moveTo(0, radius * 0.17);
+      ctx.lineTo(0, radius * 0.47);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, radius * 0.32, radius * 0.025, 0, TAU);
+      ctx.fillStyle = "#bb3937";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawHand(cx, cy, length, widthValue, angle, fill, tail) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(angle);
       ctx.beginPath();
-      ctx.moveTo(-length * tail, -width * 0.42);
-      ctx.lineTo(length * 0.08, -width);
-      ctx.lineTo(length, 0);
-      ctx.lineTo(length * 0.08, width);
-      ctx.lineTo(-length * tail, width * 0.42);
+      ctx.moveTo(-length * tail, -widthValue * 0.38);
+      ctx.bezierCurveTo(length * 0.08, -widthValue * 1.2, length * 0.58, -widthValue * 0.72, length, 0);
+      ctx.bezierCurveTo(length * 0.58, widthValue * 0.72, length * 0.08, widthValue * 1.2, -length * tail, widthValue * 0.38);
       ctx.closePath();
-      ctx.fillStyle = color;
+      ctx.fillStyle = fill;
       ctx.fill();
-      ctx.lineWidth = Math.max(1, width * 0.18);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.lineWidth = Math.max(1, widthValue * 0.18);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
       ctx.stroke();
       ctx.restore();
     }
@@ -285,105 +619,82 @@
       const minAngle = min * TAU / 60 - Math.PI / 2;
       const hourAngle = hour * TAU / 12 - Math.PI / 2;
 
-      drawHand(cx, cy, radius * 0.45, radius * 0.045, hourAngle, "#ead48e", 0.18);
-      drawHand(cx, cy, radius * 0.66, radius * 0.028, minAngle, "#f4e2a6", 0.16);
+      drawHand(cx, cy, radius * 0.43, radius * 0.038, hourAngle, "#e8d694", 0.22);
+      drawHand(cx, cy, radius * 0.66, radius * 0.024, minAngle, "#f6e7b1", 0.16);
 
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(secAngle);
-      ctx.strokeStyle = "#c84535";
-      ctx.lineWidth = Math.max(1.4, radius * 0.008);
+      ctx.strokeStyle = "#d6483f";
+      ctx.lineWidth = Math.max(1.2, radius * 0.007);
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(-radius * 0.15, 0);
-      ctx.lineTo(radius * 0.72, 0);
+      ctx.moveTo(-radius * 0.17, 0);
+      ctx.lineTo(radius * 0.73, 0);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(radius * 0.77, 0, radius * 0.025, 0, TAU);
-      ctx.fillStyle = "#c84535";
+      ctx.arc(radius * 0.77, 0, radius * 0.022, 0, TAU);
+      ctx.fillStyle = "#d6483f";
       ctx.fill();
       ctx.restore();
 
+      const cap = ctx.createRadialGradient(cx - radius * 0.025, cy - radius * 0.025, 0, cx, cy, radius * 0.075);
+      cap.addColorStop(0, "#fff3bb");
+      cap.addColorStop(0.48, "#caa75a");
+      cap.addColorStop(1, "#33383a");
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 0.055, 0, TAU);
-      const cap = ctx.createRadialGradient(cx - radius * 0.02, cy - radius * 0.02, 1, cx, cy, radius * 0.07);
-      cap.addColorStop(0, "#fff1b3");
-      cap.addColorStop(1, "#70521e");
+      ctx.arc(cx, cy, radius * 0.06, 0, TAU);
       ctx.fillStyle = cap;
       ctx.fill();
-      ctx.strokeStyle = "#22160a";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+      ctx.lineWidth = Math.max(1, radius * 0.008);
       ctx.stroke();
     }
 
-    function drawCase(cx, cy, radius, scale) {
+    function drawGlass(cx, cy, radius) {
       ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-      ctx.shadowBlur = scale * 0.05;
-      ctx.shadowOffsetY = scale * 0.035;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.93, 0, TAU);
+      ctx.clip();
 
-      const w = radius * 2.55;
-      const h = scale * 1.7;
-      const x = cx - w / 2;
-      const y = cy - radius * 1.18;
-      roundedRect(x, y, w, h, radius * 0.16);
-      const wood = ctx.createLinearGradient(x, y, x + w, y + h);
-      wood.addColorStop(0, "#301d12");
-      wood.addColorStop(0.34, "#5b3521");
-      wood.addColorStop(0.67, "#25150d");
-      wood.addColorStop(1, "#674328");
-      ctx.fillStyle = wood;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = Math.max(2, scale * 0.009);
-      ctx.strokeStyle = "rgba(239, 206, 120, 0.28)";
+      const shine = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+      shine.addColorStop(0, "rgba(255, 255, 255, 0.22)");
+      shine.addColorStop(0.22, "rgba(255, 255, 255, 0.04)");
+      shine.addColorStop(0.34, "rgba(255, 255, 255, 0)");
+      shine.addColorStop(0.72, "rgba(255, 255, 255, 0.08)");
+      shine.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = shine;
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.lineWidth = Math.max(1, radius * 0.009);
+      ctx.beginPath();
+      ctx.arc(cx - radius * 0.16, cy - radius * 0.2, radius * 0.72, Math.PI * 1.08, Math.PI * 1.7);
       ctx.stroke();
-
-      for (let i = 0; i < 7; i++) {
-        const grainY = y + h * (0.14 + i * 0.11);
-        ctx.beginPath();
-        ctx.moveTo(x + w * 0.08, grainY);
-        ctx.bezierCurveTo(x + w * 0.28, grainY - 10, x + w * 0.58, grainY + 13, x + w * 0.92, grainY - 4);
-        ctx.strokeStyle = "rgba(255, 224, 160, 0.055)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
       ctx.restore();
     }
 
     function drawScene(timestamp) {
-      const time = timestamp / 1000;
-      ctx.clearRect(0, 0, width, height);
+      const t = timestamp / 1000;
+      drawBackground(t);
 
-      const scale = Math.min(width, height);
-      const radius = Math.min(scale * 0.34, width * 0.27);
+      const minSide = Math.min(width, height);
+      const radius = Math.max(82, Math.min(width * 0.31, height * 0.235, 245));
+      const clockHeight = Math.min(height * 0.9, radius * 3.72);
       const cx = width / 2;
-      const cy = Math.max(radius * 1.35, height * 0.42);
-      const now = new Date();
+      const caseTop = Math.max(height * 0.035, (height - clockHeight) * 0.48);
+      const cy = caseTop + radius * 1.18;
+      const caseBottom = cy - radius * 1.18 + clockHeight;
 
-      drawCase(cx, cy, radius, scale);
-
-      const gearY = cy + radius * 0.68;
-      drawPendulum(cx, cy + radius * 0.28, scale, time);
-      drawGear(cx - radius * 0.78, gearY, radius * 0.26, 22, time * 0.55, "#c8a14d", "#392711");
-      drawGear(cx - radius * 0.31, gearY + radius * 0.23, radius * 0.18, 18, -time * 0.86, "#d8b965", "#3f2e15");
-      drawGear(cx + radius * 0.47, gearY + radius * 0.12, radius * 0.29, 28, time * 0.42, "#b68d3f", "#34230f");
-      drawGear(cx + radius * 0.85, gearY - radius * 0.26, radius * 0.16, 16, -time * 1.12, "#d6b55d", "#3c2a13");
-      drawEscapement(cx, cy + radius * 0.9, scale, time);
-
-      drawFace(cx, cy, radius);
-      drawHands(cx, cy, radius, now);
-
-      const shine = ctx.createRadialGradient(cx - radius * 0.45, cy - radius * 0.48, 0, cx, cy, radius * 1.2);
-      shine.addColorStop(0, "rgba(255, 255, 255, 0.16)");
-      shine.addColorStop(0.28, "rgba(255, 255, 255, 0.04)");
-      shine.addColorStop(0.29, "rgba(255, 255, 255, 0)");
-      shine.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius * 0.94, 0, TAU);
-      ctx.fillStyle = shine;
-      ctx.fill();
+      glowCircle(cx, cy + radius * 0.2, Math.max(minSide * 0.42, radius * 2), "rgba(88, 128, 134, 0.12)", "rgba(13, 20, 22, 0.04)", 0.12);
+      drawCase(cx, cy, radius, clockHeight);
+      drawPendulum(cx, cy, radius, caseBottom, t);
+      drawMovement(cx, cy, radius, t);
+      drawEscapement(cx, cy, radius, t);
+      drawDial(cx, cy, radius);
+      drawOpenHeart(cx, cy, radius, t);
+      drawHands(cx, cy, radius, new Date());
+      drawGlass(cx, cy, radius);
 
       requestAnimationFrame(drawScene);
     }
