@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical Clock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: radial-gradient(ellipse at center, #2c1810 0%, #1a0e08 60%, #0d0704 100%);
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    filter: drop-shadow(0 0 40px rgba(180, 140, 80, 0.15));
+  }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+
+// Hi-DPI support
+const dpr = window.devicePixelRatio || 1;
+const SIZE = Math.min(window.innerWidth, window.innerHeight, 700);
+canvas.width = SIZE * dpr;
+canvas.height = SIZE * dpr;
+canvas.style.width = SIZE + 'px';
+canvas.style.height = SIZE + 'px';
+ctx.scale(dpr, dpr);
+
+const CX = SIZE / 2;
+const CY = SIZE / 2;
+const R = SIZE * 0.42;
+
+// ── Color palette (warm brass / antique) ──
+const COLORS = {
+  outerRim:    '#8B7355',
+  rimShine:    '#C9B484',
+  face:        '#F5EDDA',
+  faceShadow:  '#E8DCC4',
+  tick:        '#2B1810',
+  tickMinor:   '#6B5A48',
+  numeral:     '#2B1810',
+  hourHand:    '#1A1008',
+  minuteHand:  '#1A1008',
+  secondHand:  '#8B2500',
+  centerPin:   '#C9A84C',
+  gearBrass:   'rgba(180, 150, 80, 0.12)',
+  gearBrassStroke: 'rgba(140, 110, 60, 0.25)',
+  pendulumRod: '#6B4226',
+  pendulumBob: '#C9A84C',
+};
+
+const ROMAN = ['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+
+// ── Gear definition ──
+function drawGear(cx, cy, outerR, innerR, teeth, rotation, holeR) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  const step = (Math.PI * 2) / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a0 = i * step;
+    const a1 = a0 + step * 0.15;
+    const a2 = a0 + step * 0.35;
+    const a3 = a0 + step * 0.5;
+    const a4 = a0 + step * 0.65;
+    const a5 = a0 + step * 0.85;
+    const a6 = a0 + step;
+    if (i === 0) ctx.moveTo(Math.cos(a0) * innerR, Math.sin(a0) * innerR);
+    ctx.lineTo(Math.cos(a1) * innerR, Math.sin(a1) * innerR);
+    ctx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+    ctx.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+    ctx.lineTo(Math.cos(a4) * outerR, Math.sin(a4) * outerR);
+    ctx.lineTo(Math.cos(a5) * innerR, Math.sin(a5) * innerR);
+    ctx.lineTo(Math.cos(a6) * innerR, Math.sin(a6) * innerR);
+  }
+  ctx.closePath();
+  ctx.fillStyle = COLORS.gearBrass;
+  ctx.fill();
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = COLORS.gearBrassStroke;
+  ctx.stroke();
+
+  // center hole
+  if (holeR) {
+    ctx.beginPath();
+    ctx.arc(0, 0, holeR, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.gearBrassStroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  // spokes
+  const spokeCount = Math.min(teeth, 6);
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < spokeCount; i++) {
+    const angle = (i / spokeCount) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * (holeR || 4), Math.sin(angle) * (holeR || 4));
+    ctx.lineTo(Math.cos(angle) * innerR * 0.85, Math.sin(angle) * innerR * 0.85);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Pendulum ──
+function drawPendulum(time) {
+  const pendulumLength = R * 0.6;
+  const bobR = R * 0.06;
+  const period = 2; // seconds per swing
+  const angle = Math.sin((time / 1000) * Math.PI / period) * 0.35;
+
+  const pivotY = CY + R * 0.15;
+  const endX = CX + Math.sin(angle) * pendulumLength;
+  const endY = pivotY + Math.cos(angle) * pendulumLength;
+
+  // rod
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(CX, pivotY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = COLORS.pendulumRod;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // bob
+  const grad = ctx.createRadialGradient(endX - bobR * 0.3, endY - bobR * 0.3, bobR * 0.1, endX, endY, bobR);
+  grad.addColorStop(0, '#E8D48B');
+  grad.addColorStop(0.7, COLORS.pendulumBob);
+  grad.addColorStop(1, '#8B7340');
+  ctx.beginPath();
+  ctx.arc(endX, endY, bobR, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = '#8B7340';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // pivot pin
+  ctx.beginPath();
+  ctx.arc(CX, pivotY, 3, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.centerPin;
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── Clock face & body ──
+function drawFace() {
+  // Outer wooden frame
+  const frameGrad = ctx.createRadialGradient(CX, CY, R * 0.85, CX, CY, R * 1.15);
+  frameGrad.addColorStop(0, '#5C3A1E');
+  frameGrad.addColorStop(0.3, '#7A4E2D');
+  frameGrad.addColorStop(0.6, '#5C3A1E');
+  frameGrad.addColorStop(1, '#3A2210');
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 1.12, 0, Math.PI * 2);
+  ctx.fillStyle = frameGrad;
+  ctx.fill();
+
+  // Brass bezel
+  const bezelGrad = ctx.createRadialGradient(CX - R * 0.2, CY - R * 0.2, R * 0.1, CX, CY, R * 1.02);
+  bezelGrad.addColorStop(0, '#D4BE8A');
+  bezelGrad.addColorStop(0.5, '#A8905A');
+  bezelGrad.addColorStop(1, '#7A6840');
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 1.02, 0, Math.PI * 2);
+  ctx.fillStyle = bezelGrad;
+  ctx.fill();
+
+  // Inner bezel ring
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.96, 0, Math.PI * 2);
+  ctx.strokeStyle = '#6B5830';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Clock face
+  const faceGrad = ctx.createRadialGradient(CX, CY - R * 0.15, R * 0.1, CX, CY, R * 0.95);
+  faceGrad.addColorStop(0, '#FFFDF2');
+  faceGrad.addColorStop(0.6, COLORS.face);
+  faceGrad.addColorStop(1, COLORS.faceShadow);
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.93, 0, Math.PI * 2);
+  ctx.fillStyle = faceGrad;
+  ctx.fill();
+
+  // Subtle texture lines
+  ctx.save();
+  ctx.globalAlpha = 0.03;
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(a) * R * 0.93, CY + Math.sin(a) * R * 0.93);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Tick marks ──
+function drawTicks() {
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+    const isHour = i % 5 === 0;
+    const outerR = R * 0.9;
+    const innerR = isHour ? R * 0.78 : R * 0.85;
+    const lw = isHour ? 2.5 : 1;
+
+    ctx.beginPath();
+    ctx.moveTo(CX + Math.cos(angle) * innerR, CY + Math.sin(angle) * innerR);
+    ctx.lineTo(CX + Math.cos(angle) * outerR, CY + Math.sin(angle) * outerR);
+    ctx.strokeStyle = isHour ? COLORS.tick : COLORS.tickMinor;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+}
+
+// ── Roman numerals ──
+function drawNumerals() {
+  const numeralR = R * 0.7;
+  ctx.fillStyle = COLORS.numeral;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fontSize = R * 0.12;
+  ctx.font = `${fontSize}px Georgia, serif`;
+
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const x = CX + Math.cos(angle) * numeralR;
+    const y = CY + Math.sin(angle) * numeralR;
+    ctx.fillText(ROMAN[i], x, y + 1);
+  }
+}
+
+// ── Sub-dial (small seconds) ──
+function drawSubDial(seconds) {
+  const sdCX = CX;
+  const sdCY = CY + R * 0.35;
+  const sdR = R * 0.16;
+
+  // sub-dial ring
+  ctx.beginPath();
+  ctx.arc(sdCX, sdCY, sdR + 2, 0, Math.PI * 2);
+  ctx.strokeStyle = '#6B5A48';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // sub-dial face
+  const sdGrad = ctx.createRadialGradient(sdCX, sdCY, 0, sdCX, sdCY, sdR);
+  sdGrad.addColorStop(0, '#FFFEF8');
+  sdGrad.addColorStop(1, '#EDE4D0');
+  ctx.beginPath();
+  ctx.arc(sdCX, sdCY, sdR, 0, Math.PI * 2);
+  ctx.fillStyle = sdGrad;
+  ctx.fill();
+
+  // sub ticks
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const oR = sdR * 0.9;
+    const iR = i % 3 === 0 ? sdR * 0.65 : sdR * 0.78;
+    ctx.beginPath();
+    ctx.moveTo(sdCX + Math.cos(a) * iR, sdCY + Math.sin(a) * iR);
+    ctx.lineTo(sdCX + Math.cos(a) * oR, sdCY + Math.sin(a) * oR);
+    ctx.strokeStyle = COLORS.tickMinor;
+    ctx.lineWidth = i % 3 === 0 ? 1.5 : 0.8;
+    ctx.stroke();
+  }
+
+  // sub hand
+  const secAngle = (seconds / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.beginPath();
+  ctx.moveTo(sdCX - Math.cos(secAngle) * sdR * 0.15, sdCY - Math.sin(secAngle) * sdR * 0.15);
+  ctx.lineTo(sdCX + Math.cos(secAngle) * sdR * 0.8, sdCY + Math.sin(secAngle) * sdR * 0.8);
+  ctx.strokeStyle = COLORS.secondHand;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // center dot
+  ctx.beginPath();
+  ctx.arc(sdCX, sdCY, 2, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.secondHand;
+  ctx.fill();
+}
+
+// ── Hands ──
+function drawHand(angle, length, width, color, tailLength) {
+  ctx.save();
+  ctx.translate(CX, CY);
+  ctx.rotate(angle);
+
+  // Shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 3;
+
+  // Hand body (tapered with ornamental shape)
+  ctx.beginPath();
+  const tail = tailLength || length * 0.15;
+  ctx.moveTo(-tail, 0);
+  ctx.lineTo(-width * 0.3, -width * 1.2);
+  ctx.lineTo(length * 0.6, -width * 0.4);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(length * 0.6, width * 0.4);
+  ctx.lineTo(-width * 0.3, width * 1.2);
+  ctx.closePath();
+
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+
+  // Outline
+  ctx.beginPath();
+  ctx.moveTo(-tail, 0);
+  ctx.lineTo(-width * 0.3, -width * 1.2);
+  ctx.lineTo(length * 0.6, -width * 0.4);
+  ctx.lineTo(length, 0);
+  ctx.lineTo(length * 0.6, width * 0.4);
+  ctx.lineTo(-width * 0.3, width * 1.2);
+  ctx.closePath();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Decorative circle near base
+  ctx.beginPath();
+  ctx.arc(length * 0.08, 0, width * 0.8, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawSecondHand(angle) {
+  ctx.save();
+  ctx.translate(CX, CY);
+  ctx.rotate(angle);
+
+  ctx.beginPath();
+  ctx.moveTo(-R * 0.12, 0);
+  ctx.lineTo(R * 0.72, 0);
+  ctx.strokeStyle = COLORS.secondHand;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // counterweight circle
+  ctx.beginPath();
+  ctx.arc(-R * 0.08, 0, R * 0.025, 0, Math.PI * 2);
+  ctx.fillStyle = COLORS.secondHand;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ── Center pin ──
+function drawCenterPin() {
+  const grad = ctx.createRadialGradient(CX - 1, CY - 1, 1, CX, CY, R * 0.035);
+  grad.addColorStop(0, '#F0D870');
+  grad.addColorStop(0.6, COLORS.centerPin);
+  grad.addColorStop(1, '#7A6830');
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.03, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = '#7A6830';
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+}
+
+// ── Glass reflection ──
+function drawGlassReflection() {
+  ctx.save();
+  const reflGrad = ctx.createRadialGradient(
+    CX - R * 0.3, CY - R * 0.3, R * 0.05,
+    CX, CY, R * 0.95
+  );
+  reflGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+  reflGrad.addColorStop(0.4, 'rgba(255,255,255,0.03)');
+  reflGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.93, 0, Math.PI * 2);
+  ctx.fillStyle = reflGrad;
+  ctx.fill();
+
+  // arc highlight
+  ctx.beginPath();
+  ctx.arc(CX - R * 0.2, CY - R * 0.25, R * 0.7, -0.6, 0.3);
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = R * 0.06;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Brand text ──
+function drawBrandText() {
+  ctx.save();
+  ctx.fillStyle = '#6B5A48';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `italic ${R * 0.065}px Georgia, serif`;
+  ctx.fillText('Mechanical', CX, CY - R * 0.35);
+  ctx.font = `${R * 0.04}px Georgia, serif`;
+  ctx.fillText('— SWISS MADE —', CX, CY + R * 0.55);
+  ctx.restore();
+}
+
+// ── Main render loop ──
+function render() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  const now = new Date();
+  const ms = now.getMilliseconds();
+  const sec = now.getSeconds() + ms / 1000;
+  const min = now.getMinutes() + sec / 60;
+  const hr = (now.getHours() % 12) + min / 60;
+
+  const secAngle  = (sec / 60) * Math.PI * 2 - Math.PI / 2;
+  const minAngle  = (min / 60) * Math.PI * 2 - Math.PI / 2;
+  const hrAngle   = (hr  / 12) * Math.PI * 2 - Math.PI / 2;
+
+  // Background gears (decorative, slowly spinning)
+  const gearTime = now.getTime() / 1000;
+  drawGear(CX - R * 0.45, CY - R * 0.4, R * 0.22, R * 0.17, 18, gearTime * 0.1, R * 0.04);
+  drawGear(CX + R * 0.5,  CY + R * 0.1,  R * 0.18, R * 0.14, 14, -gearTime * 0.13, R * 0.03);
+  drawGear(CX - R * 0.1,  CY + R * 0.55, R * 0.15, R * 0.12, 12, gearTime * 0.15, R * 0.025);
+  drawGear(CX + R * 0.35, CY - R * 0.5,  R * 0.13, R * 0.10, 10, -gearTime * 0.17, R * 0.02);
+
+  // Pendulum behind clock
+  drawPendulum(now.getTime());
+
+  // Clock body
+  drawFace();
+  drawTicks();
+  drawNumerals();
+  drawBrandText();
+  drawSubDial(sec);
+
+  // Hands
+  drawHand(hrAngle,  R * 0.52, R * 0.04,  COLORS.hourHand, R * 0.08);
+  drawHand(minAngle, R * 0.72, R * 0.028, COLORS.minuteHand, R * 0.1);
+  drawSecondHand(secAngle);
+  drawCenterPin();
+
+  // Glass overlay
+  drawGlassReflection();
+
+  requestAnimationFrame(render);
+}
+
+render();
+
+// Resize handler
+window.addEventListener('resize', () => location.reload());
+</script>
+</body>
+</html>
