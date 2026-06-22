@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical Clock</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: radial-gradient(circle at 50% 40%, #2a2a35 0%, #15151c 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  canvas {
+    display: block;
+    max-width: 100vmin;
+    max-height: 100vmin;
+    filter: drop-shadow(0 20px 40px rgba(0,0,0,0.6));
+  }
+</style>
+</head>
+<body>
+<canvas id="clock" width="640" height="640"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+
+function drawClock() {
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(cx, cy) * 0.92;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Outer case (bezel)
+  const bezel = ctx.createRadialGradient(0, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
+  bezel.addColorStop(0, '#5a4a32');
+  bezel.addColorStop(0.7, '#2e2418');
+  bezel.addColorStop(1, '#0c0a06');
+  ctx.fillStyle = bezel;
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Inner rim highlight
+  ctx.strokeStyle = 'rgba(220,190,120,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.94, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Dial face
+  const dial = ctx.createRadialGradient(0, -R * 0.2, R * 0.1, 0, 0, R * 0.9);
+  dial.addColorStop(0, '#f7f1e0');
+  dial.addColorStop(1, '#e0d6bd');
+  ctx.fillStyle = dial;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#8a7a55';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Tick marks
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2;
+    const isHour = i % 5 === 0;
+    const outer = R * 0.88;
+    const inner = isHour ? R * 0.78 : R * 0.84;
+    ctx.strokeStyle = isHour ? '#2a2218' : '#7a6a4a';
+    ctx.lineWidth = isHour ? 4 : 1.5;
+    ctx.beginPath();
+    ctx.moveTo(Math.sin(angle) * inner, -Math.cos(angle) * inner);
+    ctx.lineTo(Math.sin(angle) * outer, -Math.cos(angle) * outer);
+    ctx.stroke();
+  }
+
+  // Hour numerals
+  ctx.fillStyle = '#2a2218';
+  ctx.font = `bold ${Math.round(R * 0.12)}px Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let h = 1; h <= 12; h++) {
+    const angle = (h / 12) * Math.PI * 2;
+    const r = R * 0.66;
+    ctx.fillText(h, Math.sin(angle) * r, -Math.cos(angle) * r);
+  }
+
+  // Current time
+  const now = new Date();
+  const ms = now.getMilliseconds();
+  const s = now.getSeconds() + ms / 1000;
+  const m = now.getMinutes() + s / 60;
+  const h = (now.getHours() % 12) + m / 60;
+
+  // Hour hand
+  drawHand((h / 12) * Math.PI * 2, R * 0.5, R * 0.04, '#1a140d', R * 0.12);
+  // Minute hand
+  drawHand((m / 60) * Math.PI * 2, R * 0.72, R * 0.028, '#1a140d', R * 0.14);
+  // Second hand
+  drawHand((s / 60) * Math.PI * 2, R * 0.8, R * 0.012, '#b03020', R * 0.18, true);
+
+  // Center cap
+  ctx.fillStyle = '#1a140d';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#b03020';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.018, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawHand(angle, length, width, color, tail, isSecond) {
+  ctx.save();
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-width, tail);
+  ctx.lineTo(width, tail);
+  ctx.lineTo(width * 0.4, -length);
+  ctx.lineTo(-width * 0.4, -length);
+  ctx.closePath();
+  ctx.fill();
+  if (isSecond) {
+    // small counterweight circle
+    ctx.beginPath();
+    ctx.arc(0, tail * 0.5, width * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function loop() {
+  drawClock();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
