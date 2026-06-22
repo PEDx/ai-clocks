@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical Clock</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Georgia', serif;
+  }
+  canvas {
+    filter: drop-shadow(0 0 30px rgba(212, 175, 55, 0.15));
+  }
+</style>
+</head>
+<body>
+<canvas id="clock"></canvas>
+<script>
+const canvas = document.getElementById('clock');
+const ctx = canvas.getContext('2d');
+const size = Math.min(window.innerWidth, window.innerHeight) * 0.85;
+canvas.width = size;
+canvas.height = size;
+const cx = size / 2;
+const cy = size / 2;
+const radius = size / 2 * 0.92;
+
+function drawClock() {
+  ctx.clearRect(0, 0, size, size);
+
+  // --- Outer bezel ---
+  const bezelGrad = ctx.createRadialGradient(cx, cy, radius * 0.92, cx, cy, radius);
+  bezelGrad.addColorStop(0, '#b8860b');
+  bezelGrad.addColorStop(0.3, '#daa520');
+  bezelGrad.addColorStop(0.5, '#f5d060');
+  bezelGrad.addColorStop(0.7, '#daa520');
+  bezelGrad.addColorStop(1, '#8b6914');
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = bezelGrad;
+  ctx.fill();
+
+  // --- Inner bezel ring ---
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.93, 0, Math.PI * 2);
+  ctx.strokeStyle = '#8b6914';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // --- Clock face ---
+  const faceGrad = ctx.createRadialGradient(cx * 0.9, cy * 0.85, 0, cx, cy, radius * 0.92);
+  faceGrad.addColorStop(0, '#fffff5');
+  faceGrad.addColorStop(0.7, '#fdf6e3');
+  faceGrad.addColorStop(1, '#e8dcc8');
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.92, 0, Math.PI * 2);
+  ctx.fillStyle = faceGrad;
+  ctx.fill();
+
+  // --- Decorative inner circles ---
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.88, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(139, 105, 20, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.72, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(139, 105, 20, 0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // --- Minute tick marks ---
+  for (let i = 0; i < 60; i++) {
+    const angle = (i * 6 - 90) * Math.PI / 180;
+    const isHour = i % 5 === 0;
+    const outerR = radius * 0.88;
+    const innerR = isHour ? radius * 0.78 : radius * 0.83;
+
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.strokeStyle = isHour ? '#2c1810' : '#8b7355';
+    ctx.lineWidth = isHour ? 3 : 1;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // --- Roman numerals ---
+  const romans = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const numR = radius * 0.68;
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * 30 - 90) * Math.PI / 180;
+    const x = cx + Math.cos(angle) * numR;
+    const y = cy + Math.sin(angle) * numR;
+    ctx.font = `bold ${radius * 0.09}px Georgia, serif`;
+    ctx.fillStyle = '#2c1810';
+    ctx.fillText(romans[i], x, y);
+  }
+
+  // --- Decorative center ornament ---
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.15, 0, Math.PI * 2);
+  const ornGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.15);
+  ornGrad.addColorStop(0, 'rgba(218, 165, 32, 0.08)');
+  ornGrad.addColorStop(1, 'rgba(218, 165, 32, 0.02)');
+  ctx.fillStyle = ornGrad;
+  ctx.fill();
+
+  // --- "SWISS MADE" text ---
+  ctx.font = `${radius * 0.035}px Georgia, serif`;
+  ctx.fillStyle = '#8b7355';
+  ctx.fillText('S W I S S   M A D E', cx, cy + radius * 0.35);
+
+  // --- Brand text ---
+  ctx.font = `italic ${radius * 0.05}px Georgia, serif`;
+  ctx.fillStyle = '#5c4033';
+  ctx.fillText('Mécanique', cx, cy - radius * 0.3);
+
+  // --- Get current time ---
+  const now = new Date();
+  const hours = now.getHours() % 12;
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  const millis = now.getMilliseconds();
+  const smoothSec = seconds + millis / 1000;
+
+  // --- Hour hand ---
+  const hourAngle = ((hours + minutes / 60) * 30 - 90) * Math.PI / 180;
+  drawHand(hourAngle, radius * 0.5, 7, '#1a0f00', radius * 0.06);
+
+  // --- Minute hand ---
+  const minAngle = ((minutes + seconds / 60) * 6 - 90) * Math.PI / 180;
+  drawHand(minAngle, radius * 0.72, 4.5, '#2c1810', radius * 0.04);
+
+  // --- Second hand ---
+  const secAngle = (smoothSec * 6 - 90) * Math.PI / 180;
+  drawSecondHand(secAngle, radius * 0.8, radius * 0.12, '#8b0000');
+
+  // --- Center cap ---
+  const capGrad = ctx.createRadialGradient(cx - 2, cy - 2, 0, cx, cy, radius * 0.035);
+  capGrad.addColorStop(0, '#f5d060');
+  capGrad.addColorStop(0.5, '#daa520');
+  capGrad.addColorStop(1, '#8b6914');
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.035, 0, Math.PI * 2);
+  ctx.fillStyle = capGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#6b4e14';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // --- Glass reflection ---
+  const glassGrad = ctx.createLinearGradient(cx - radius * 0.5, cy - radius * 0.5, cx + radius * 0.3, cy + radius * 0.3);
+  glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+  glassGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.03)');
+  glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.92, 0, Math.PI * 2);
+  ctx.fillStyle = glassGrad;
+  ctx.fill();
+
+  requestAnimationFrame(drawClock);
+}
+
+function drawHand(angle, length, width, color, tailLength) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle + Math.PI / 2);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 3;
+
+  // Tapered hand shape
+  ctx.beginPath();
+  ctx.moveTo(-width * 0.6, tailLength);
+  ctx.lineTo(-width * 0.4, -length * 0.3);
+  ctx.lineTo(-width * 0.15, -length);
+  ctx.lineTo(width * 0.15, -length);
+  ctx.lineTo(width * 0.4, -length * 0.3);
+  ctx.lineTo(width * 0.6, tailLength);
+  ctx.closePath();
+
+  const handGrad = ctx.createLinearGradient(-width, 0, width, 0);
+  handGrad.addColorStop(0, color);
+  handGrad.addColorStop(0.4, lightenColor(color, 30));
+  handGrad.addColorStop(0.6, lightenColor(color, 30));
+  handGrad.addColorStop(1, color);
+  ctx.fillStyle = handGrad;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawSecondHand(angle, length, tailLength, color) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle + Math.PI / 2);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+
+  // Thin shaft
+  ctx.beginPath();
+  ctx.moveTo(-0.8, tailLength);
+  ctx.lineTo(-0.8, -length * 0.85);
+  ctx.lineTo(0.8, -length * 0.85);
+  ctx.lineTo(0.8, tailLength);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Counterweight circle
+  ctx.beginPath();
+  ctx.arc(0, tailLength * 0.6, radius * 0.025, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Pointed tip
+  ctx.beginPath();
+  ctx.moveTo(-0.8, -length * 0.85);
+  ctx.lineTo(0, -length);
+  ctx.lineTo(0.8, -length * 0.85);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  ctx.restore();
+  ctx.restore();
+}
+
+function lightenColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + amount);
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + amount);
+  const b = Math.min(255, (num & 0x0000FF) + amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+drawClock();
+</script>
+</body>
+</html>
