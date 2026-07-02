@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mechanical Clock · Claude Opus 4.8</title>
+  <style>
+    :root {
+      --bg-1: #1b1712;
+      --bg-2: #0d0b09;
+      --brass: #c9a86a;
+      --brass-dark: #6d5326;
+      --text: #efe6d4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 30%, var(--bg-1), var(--bg-2) 70%);
+      color: var(--text);
+      font-family: "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.6));
+    }
+
+    .readout {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.18em;
+      font-size: 14px;
+      color: var(--brass);
+      opacity: 0.85;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="clock" width="520" height="520"></canvas>
+  <div class="readout" id="readout">--:--:--</div>
+
+  <script>
+    const canvas = document.getElementById("clock")
+    const ctx = canvas.getContext("2d")
+    const readout = document.getElementById("readout")
+
+    // Support high-DPI displays for crisp strokes.
+    const SIZE = 520
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = SIZE * dpr
+    canvas.height = SIZE * dpr
+    canvas.style.width = SIZE + "px"
+    canvas.style.height = SIZE + "px"
+    ctx.scale(dpr, dpr)
+
+    const R = SIZE / 2          // canvas center coordinate
+    const DIAL = 214            // outer dial radius
+    const TAU = Math.PI * 2
+
+    // Draw a single toothed gear centered at the origin of the current transform.
+    function drawGear(radius, teeth, toothDepth, angle, color) {
+      ctx.save()
+      ctx.rotate(angle)
+      ctx.beginPath()
+      for (let i = 0; i <= teeth; i++) {
+        const a = (i / teeth) * TAU
+        const rOuter = radius + toothDepth
+        // Alternate between tooth tip and valley to form the profile.
+        const tip = a + (0.5 / teeth) * TAU
+        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius)
+        ctx.lineTo(Math.cos(a + 0.15) * rOuter, Math.sin(a + 0.15) * rOuter)
+        ctx.lineTo(Math.cos(tip - 0.15) * rOuter, Math.sin(tip - 0.15) * rOuter)
+        ctx.lineTo(Math.cos(tip) * radius, Math.sin(tip) * radius)
+      }
+      ctx.closePath()
+      ctx.fillStyle = color
+      ctx.fill()
+
+      // Hollow hub with spokes for a mechanical look.
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.62, 0, TAU)
+      ctx.strokeStyle = "rgba(0,0,0,0.35)"
+      ctx.lineWidth = 3
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.16, 0, TAU)
+      ctx.fillStyle = "#0d0b09"
+      ctx.fill()
+
+      ctx.strokeStyle = color
+      ctx.lineWidth = 6
+      for (let s = 0; s < 5; s++) {
+        const sa = (s / 5) * TAU
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(sa) * radius * 0.16, Math.sin(sa) * radius * 0.16)
+        ctx.lineTo(Math.cos(sa) * radius * 0.6, Math.sin(sa) * radius * 0.6)
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+
+    // Background gear train that turns slowly behind the dial.
+    function drawMovement(t) {
+      ctx.save()
+      ctx.translate(R, R)
+      ctx.globalAlpha = 0.5
+      drawGear(70, 24, 12, t * 0.0004, "#4a3a1c")
+      ctx.save()
+      ctx.translate(96, -104)
+      drawGear(40, 16, 9, -t * 0.0009, "#5a471f")
+      ctx.restore()
+      ctx.save()
+      ctx.translate(-110, 96)
+      drawGear(52, 18, 10, t * 0.0006, "#463619")
+      ctx.restore()
+      ctx.restore()
+    }
+
+    // The brass case and enamel dial face.
+    function drawFace() {
+      ctx.save()
+      ctx.translate(R, R)
+
+      // Outer brass bezel with metallic gradient.
+      const bezel = ctx.createLinearGradient(-DIAL, -DIAL, DIAL, DIAL)
+      bezel.addColorStop(0, "#f3dca0")
+      bezel.addColorStop(0.5, "#8a6c30")
+      bezel.addColorStop(1, "#3d2f14")
+      ctx.beginPath()
+      ctx.arc(0, 0, DIAL + 20, 0, TAU)
+      ctx.fillStyle = bezel
+      ctx.fill()
+
+      ctx.beginPath()
+      ctx.arc(0, 0, DIAL + 6, 0, TAU)
+      ctx.fillStyle = "#241c11"
+      ctx.fill()
+
+      // Enamel dial.
+      const face = ctx.createRadialGradient(0, -40, 20, 0, 0, DIAL)
+      face.addColorStop(0, "#fbf3e0")
+      face.addColorStop(1, "#e7d7b6")
+      ctx.beginPath()
+      ctx.arc(0, 0, DIAL, 0, TAU)
+      ctx.fillStyle = face
+      ctx.fill()
+
+      // Minute / second ticks.
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * TAU
+        const major = i % 5 === 0
+        const len = major ? 16 : 7
+        ctx.beginPath()
+        ctx.lineWidth = major ? 3.5 : 1.4
+        ctx.strokeStyle = major ? "#3a2c14" : "#8a7856"
+        ctx.moveTo(Math.cos(a) * (DIAL - 22), Math.sin(a) * (DIAL - 22))
+        ctx.lineTo(Math.cos(a) * (DIAL - 22 + len), Math.sin(a) * (DIAL - 22 + len))
+        ctx.stroke()
+      }
+
+      // Roman numerals.
+      const romans = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"]
+      ctx.fillStyle = "#2c2110"
+      ctx.font = "600 26px 'Times New Roman', serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU - Math.PI / 2
+        const rr = DIAL - 52
+        ctx.fillText(romans[i], Math.cos(a) * rr, Math.sin(a) * rr)
+      }
+
+      // Maker's signature.
+      ctx.font = "italic 13px 'Times New Roman', serif"
+      ctx.fillStyle = "#6d5326"
+      ctx.fillText("Claude Opus 4.8", 0, 66)
+      ctx.font = "11px 'Times New Roman', serif"
+      ctx.fillText("· automaton ·", 0, 84)
+
+      ctx.restore()
+    }
+
+    // A single tapered hand rotating from the center.
+    function drawHand(angle, length, width, color, backLength) {
+      ctx.save()
+      ctx.translate(R, R)
+      ctx.rotate(angle)
+      ctx.lineCap = "round"
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.beginPath()
+      ctx.moveTo(0, backLength)
+      ctx.lineTo(0, -length)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    function render(t) {
+      ctx.clearRect(0, 0, SIZE, SIZE)
+
+      drawMovement(t)
+      drawFace()
+
+      const now = new Date()
+      const ms = now.getMilliseconds()
+      const s = now.getSeconds()
+      const m = now.getMinutes()
+      const h = now.getHours() % 12
+
+      // Smooth angles; the second hand sweeps continuously.
+      const secAngle = ((s + ms / 1000) / 60) * TAU
+      const minAngle = ((m + s / 60) / 60) * TAU
+      const hourAngle = ((h + m / 60) / 12) * TAU
+
+      drawHand(hourAngle, 108, 9, "#2a2010", 26)
+      drawHand(minAngle, 152, 6, "#2a2010", 34)
+      drawHand(secAngle, 168, 2.2, "#b8442f", 46)
+
+      // Center cap.
+      ctx.save()
+      ctx.translate(R, R)
+      ctx.beginPath()
+      ctx.arc(0, 0, 9, 0, TAU)
+      ctx.fillStyle = "#c9a86a"
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(0, 0, 3.5, 0, TAU)
+      ctx.fillStyle = "#3d2f14"
+      ctx.fill()
+      ctx.restore()
+
+      const pad = (n) => String(n).padStart(2, "0")
+      readout.textContent = `${pad(now.getHours())}:${pad(m)}:${pad(s)}`
+
+      requestAnimationFrame(render)
+    }
+
+    requestAnimationFrame(render)
+  </script>
+</body>
+
+</html>
