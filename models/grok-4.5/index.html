@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mechanical Clock · Grok 4.5</title>
+  <style>
+    :root {
+      --bg-1: #1a1410;
+      --bg-2: #0a0806;
+      --brass: #d4b06a;
+      --brass-dim: #8a6b35;
+      --text: #f0e6d2;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 35%, #2a1f14 0%, transparent 55%),
+        radial-gradient(circle at 50% 50%, var(--bg-1), var(--bg-2) 75%);
+      color: var(--text);
+      font-family: "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      filter: drop-shadow(0 28px 56px rgba(0, 0, 0, 0.65));
+      max-width: min(92vw, 560px);
+      max-height: min(92vw, 560px);
+    }
+
+    .meta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .readout {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.22em;
+      font-size: 15px;
+      color: var(--brass);
+      opacity: 0.9;
+    }
+
+    .label {
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--brass-dim);
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="clock" width="560" height="560"></canvas>
+  <div class="meta">
+    <div class="readout" id="readout">--:--:--</div>
+    <div class="label">Grok 4.5 · Mechanical</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("clock");
+    const ctx = canvas.getContext("2d");
+    const readout = document.getElementById("readout");
+
+    const SIZE = 560;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = SIZE * dpr;
+    canvas.height = SIZE * dpr;
+    canvas.style.width = SIZE + "px";
+    canvas.style.height = SIZE + "px";
+    ctx.scale(dpr, dpr);
+
+    const CX = SIZE / 2;
+    const CY = SIZE / 2;
+    const DIAL = 210;
+    const TAU = Math.PI * 2;
+    const ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
+
+    // ── Gear ──────────────────────────────────────────────────────────
+    function drawGear(radius, teeth, depth, angle, fill, spokeCount = 6) {
+      ctx.save();
+      ctx.rotate(angle);
+
+      // Tooth profile
+      ctx.beginPath();
+      for (let i = 0; i < teeth; i++) {
+        const a0 = (i / teeth) * TAU;
+        const a1 = a0 + (0.18 / teeth) * TAU;
+        const a2 = a0 + (0.32 / teeth) * TAU;
+        const a3 = a0 + (0.50 / teeth) * TAU;
+        const a4 = a0 + (0.68 / teeth) * TAU;
+        const a5 = a0 + (0.82 / teeth) * TAU;
+        const a6 = a0 + (1.00 / teeth) * TAU;
+        const rOut = radius + depth;
+        if (i === 0) ctx.moveTo(Math.cos(a0) * radius, Math.sin(a0) * radius);
+        ctx.lineTo(Math.cos(a1) * radius, Math.sin(a1) * radius);
+        ctx.lineTo(Math.cos(a2) * rOut, Math.sin(a2) * rOut);
+        ctx.lineTo(Math.cos(a3) * rOut, Math.sin(a3) * rOut);
+        ctx.lineTo(Math.cos(a4) * rOut, Math.sin(a4) * rOut);
+        ctx.lineTo(Math.cos(a5) * radius, Math.sin(a5) * radius);
+        ctx.lineTo(Math.cos(a6) * radius, Math.sin(a6) * radius);
+      }
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+
+      // Rim ring
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.78, 0, TAU);
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Spokes
+      const hubR = radius * 0.18;
+      const spokeEnd = radius * 0.72;
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = Math.max(3, radius * 0.07);
+      ctx.lineCap = "round";
+      for (let s = 0; s < spokeCount; s++) {
+        const sa = (s / spokeCount) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(sa) * hubR, Math.sin(sa) * hubR);
+        ctx.lineTo(Math.cos(sa) * spokeEnd, Math.sin(sa) * spokeEnd);
+        ctx.stroke();
+      }
+
+      // Hub
+      ctx.beginPath();
+      ctx.arc(0, 0, hubR, 0, TAU);
+      ctx.fillStyle = "#1a1208";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, hubR * 0.45, 0, TAU);
+      ctx.fillStyle = fill;
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ── Escapement wheel (visible through aperture) ───────────────────
+    function drawEscapement(t) {
+      ctx.save();
+      ctx.translate(CX, CY + 78);
+      ctx.globalAlpha = 0.55;
+      drawGear(28, 15, 6, t * 0.0025, "#6b5228", 5);
+      ctx.restore();
+    }
+
+    // ── Background gear train ─────────────────────────────────────────
+    function drawMovement(t) {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.globalAlpha = 0.42;
+
+      // Large center gear
+      drawGear(78, 28, 11, t * 0.00035, "#4e3a18", 6);
+
+      // Upper-right meshing gear
+      ctx.save();
+      ctx.translate(108, -98);
+      drawGear(44, 18, 9, -t * 0.0007, "#5c4620", 5);
+      ctx.restore();
+
+      // Lower-left meshing gear
+      ctx.save();
+      ctx.translate(-118, 88);
+      drawGear(54, 20, 10, t * 0.00055, "#453318", 6);
+      ctx.restore();
+
+      // Small upper-left
+      ctx.save();
+      ctx.translate(-90, -110);
+      drawGear(32, 14, 7, -t * 0.0011, "#56401c", 4);
+      ctx.restore();
+
+      ctx.restore();
+    }
+
+    // ── Pendulum (below dial) ─────────────────────────────────────────
+    function drawPendulum(t) {
+      // Swing ±6° with ~1.2s period (approx half-second tick feel)
+      const period = 1200;
+      const swing = Math.sin((t / period) * TAU) * 0.105;
+
+      ctx.save();
+      ctx.translate(CX, CY + DIAL + 8);
+      ctx.rotate(swing);
+
+      // Rod
+      const rodLen = 70;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, rodLen);
+      ctx.strokeStyle = "#7a5a2e";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      // Bob
+      const bobY = rodLen + 14;
+      const bobGrad = ctx.createRadialGradient(-4, bobY - 4, 2, 0, bobY, 16);
+      bobGrad.addColorStop(0, "#e8c878");
+      bobGrad.addColorStop(0.55, "#b89240");
+      bobGrad.addColorStop(1, "#5a3e14");
+      ctx.beginPath();
+      ctx.arc(0, bobY, 14, 0, TAU);
+      ctx.fillStyle = bobGrad;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, bobY, 5, 0, TAU);
+      ctx.fillStyle = "#2a1c08";
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ── Case & dial face ──────────────────────────────────────────────
+    function drawFace() {
+      ctx.save();
+      ctx.translate(CX, CY);
+
+      // Outer shadow ring
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 32, 0, TAU);
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fill();
+
+      // Outer brass bezel — multi-stop metallic gradient
+      const bezel = ctx.createLinearGradient(-DIAL, -DIAL, DIAL, DIAL);
+      bezel.addColorStop(0, "#f5e0a8");
+      bezel.addColorStop(0.22, "#c9a050");
+      bezel.addColorStop(0.5, "#7a5820");
+      bezel.addColorStop(0.78, "#c9a050");
+      bezel.addColorStop(1, "#3e2a0c");
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 26, 0, TAU);
+      ctx.fillStyle = bezel;
+      ctx.fill();
+
+      // Bezel edge highlight ring
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 26, 0, TAU);
+      ctx.strokeStyle = "rgba(255,230,160,0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Inner dark channel
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 10, 0, TAU);
+      ctx.fillStyle = "#1c140a";
+      ctx.fill();
+
+      // Thin gold ring
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 8, 0, TAU);
+      ctx.strokeStyle = "#b89240";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Enamel dial face
+      const face = ctx.createRadialGradient(-30, -50, 10, 0, 0, DIAL);
+      face.addColorStop(0, "#fff8ea");
+      face.addColorStop(0.55, "#f0e4c8");
+      face.addColorStop(1, "#dccaa0");
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL, 0, TAU);
+      ctx.fillStyle = face;
+      ctx.fill();
+
+      // Subtle inner vignette
+      const vig = ctx.createRadialGradient(0, 0, DIAL * 0.55, 0, 0, DIAL);
+      vig.addColorStop(0, "rgba(0,0,0,0)");
+      vig.addColorStop(1, "rgba(80,55,20,0.08)");
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL, 0, TAU);
+      ctx.fillStyle = vig;
+      ctx.fill();
+
+      // Minute / hour ticks
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * TAU - Math.PI / 2;
+        const major = i % 5 === 0;
+        const hour = i % 15 === 0;
+        const len = hour ? 20 : major ? 14 : 7;
+        const w = hour ? 3.8 : major ? 2.6 : 1.2;
+        const r0 = DIAL - 14;
+        const r1 = r0 - len;
+        ctx.beginPath();
+        ctx.lineWidth = w;
+        ctx.strokeStyle = major ? "#2e2010" : "#8a7450";
+        ctx.lineCap = "round";
+        ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+        ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+        ctx.stroke();
+      }
+
+      // Roman numerals
+      ctx.fillStyle = "#241808";
+      ctx.font = "600 28px 'Times New Roman', 'Noto Serif', serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * TAU - Math.PI / 2;
+        const rr = DIAL - 48;
+        // Slight emboss: draw shadow then glyph
+        ctx.fillStyle = "rgba(180,150,80,0.25)";
+        ctx.fillText(ROMAN[i], Math.cos(a) * rr + 0.8, Math.sin(a) * rr + 0.8);
+        ctx.fillStyle = "#241808";
+        ctx.fillText(ROMAN[i], Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+
+      // Sub-seconds track (inner circle)
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL - 72, 0, TAU);
+      ctx.strokeStyle = "rgba(100,75,35,0.18)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Maker signature
+      ctx.font = "italic 12px 'Times New Roman', serif";
+      ctx.fillStyle = "#7a5e30";
+      ctx.fillText("Grok 4.5", 0, 58);
+      ctx.font = "10px 'Times New Roman', serif";
+      ctx.fillStyle = "#9a7a40";
+      ctx.fillText("· chronograph ·", 0, 74);
+
+      // Small aperture for escapement (bottom of dial)
+      ctx.beginPath();
+      ctx.ellipse(0, 100, 36, 22, 0, 0, TAU);
+      ctx.fillStyle = "#120e08";
+      ctx.fill();
+      ctx.strokeStyle = "#8a6b30";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // ── Hands ─────────────────────────────────────────────────────────
+    function drawTaperedHand(angle, length, baseW, tipW, color, backLength) {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(angle - Math.PI / 2);
+
+      // Shadow
+      ctx.fillStyle = "rgba(0,0,0,0.18)";
+      ctx.beginPath();
+      ctx.moveTo(-backLength, baseW * 0.35 + 1.5);
+      ctx.lineTo(length, tipW + 1.5);
+      ctx.lineTo(length, -tipW + 1.5);
+      ctx.lineTo(-backLength, -baseW * 0.35 + 1.5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-backLength, baseW * 0.4);
+      ctx.lineTo(length * 0.72, baseW * 0.35);
+      ctx.lineTo(length, tipW);
+      ctx.lineTo(length, -tipW);
+      ctx.lineTo(length * 0.72, -baseW * 0.35);
+      ctx.lineTo(-backLength, -baseW * 0.4);
+      ctx.closePath();
+      ctx.fill();
+
+      // Highlight edge
+      ctx.strokeStyle = "rgba(255,240,200,0.15)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-backLength, -baseW * 0.4);
+      ctx.lineTo(length * 0.72, -baseW * 0.35);
+      ctx.lineTo(length, -tipW);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawSecondHand(angle) {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(angle - Math.PI / 2);
+
+      // Counterweight
+      ctx.fillStyle = "#a83820";
+      ctx.beginPath();
+      ctx.ellipse(-42, 0, 8, 5, 0, 0, TAU);
+      ctx.fill();
+
+      // Shaft
+      ctx.strokeStyle = "#c04028";
+      ctx.lineWidth = 1.8;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-48, 0);
+      ctx.lineTo(DIAL - 28, 0);
+      ctx.stroke();
+
+      // Tip diamond
+      ctx.fillStyle = "#c04028";
+      ctx.beginPath();
+      ctx.moveTo(DIAL - 28, 0);
+      ctx.lineTo(DIAL - 38, -3.5);
+      ctx.lineTo(DIAL - 48, 0);
+      ctx.lineTo(DIAL - 38, 3.5);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawCenterCap() {
+      ctx.save();
+      ctx.translate(CX, CY);
+
+      // Outer brass disc
+      const cap = ctx.createRadialGradient(-3, -3, 1, 0, 0, 12);
+      cap.addColorStop(0, "#f0d890");
+      cap.addColorStop(0.5, "#c9a050");
+      cap.addColorStop(1, "#5a3e14");
+      ctx.beginPath();
+      ctx.arc(0, 0, 11, 0, TAU);
+      ctx.fillStyle = cap;
+      ctx.fill();
+
+      // Inner pin
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, TAU);
+      ctx.fillStyle = "#1e1408";
+      ctx.fill();
+
+      // Specular
+      ctx.beginPath();
+      ctx.arc(-2.5, -2.5, 2, 0, TAU);
+      ctx.fillStyle = "rgba(255,245,200,0.45)";
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ── Glass reflection ──────────────────────────────────────────────
+    function drawGlass() {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL - 2, 0, TAU);
+      ctx.clip();
+
+      // Soft arc highlight (upper-left)
+      const gl = ctx.createLinearGradient(-DIAL * 0.6, -DIAL, DIAL * 0.3, 0);
+      gl.addColorStop(0, "rgba(255,255,255,0.10)");
+      gl.addColorStop(0.4, "rgba(255,255,255,0.03)");
+      gl.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.beginPath();
+      ctx.ellipse(-40, -60, 140, 90, -0.4, 0, TAU);
+      ctx.fillStyle = gl;
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ── Main render loop ──────────────────────────────────────────────
+    function pad(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function render(t) {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      // Soft outer glow
+      ctx.save();
+      ctx.translate(CX, CY);
+      const glow = ctx.createRadialGradient(0, 0, DIAL, 0, 0, DIAL + 50);
+      glow.addColorStop(0, "rgba(180,140,60,0.08)");
+      glow.addColorStop(1, "rgba(180,140,60,0)");
+      ctx.beginPath();
+      ctx.arc(0, 0, DIAL + 50, 0, TAU);
+      ctx.fillStyle = glow;
+      ctx.fill();
+      ctx.restore();
+
+      drawPendulum(t);
+      drawMovement(t);
+      drawFace();
+      drawEscapement(t);
+
+      const now = new Date();
+      const ms = now.getMilliseconds();
+      const s = now.getSeconds();
+      const m = now.getMinutes();
+      const h = now.getHours() % 12;
+
+      // Continuous sweep angles
+      const secA = ((s + ms / 1000) / 60) * TAU;
+      const minA = ((m + s / 60 + ms / 60000) / 60) * TAU;
+      const hourA = ((h + m / 60 + s / 3600) / 12) * TAU;
+
+      drawTaperedHand(hourA, 105, 11, 1.5, "#2a1c0c", 22);
+      drawTaperedHand(minA, 150, 7.5, 1.2, "#2a1c0c", 28);
+      drawSecondHand(secA);
+      drawCenterCap();
+      drawGlass();
+
+      readout.textContent =
+        pad(now.getHours()) + ":" + pad(m) + ":" + pad(s);
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
