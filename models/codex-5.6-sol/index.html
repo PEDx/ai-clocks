@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#11100e" />
+  <title>Mechanical Clock</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0d0d0c;
+      color: #efe6d2;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+
+    body {
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(150, 112, 50, .12), transparent 34%),
+        radial-gradient(circle at 50% 100%, #25221c 0, #11110f 43%, #090909 100%);
+    }
+
+    canvas { width: 100%; height: 100%; display: block; }
+
+    .ui {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .brand {
+      position: absolute;
+      top: clamp(18px, 4vw, 38px);
+      left: 50%;
+      translate: -50% 0;
+      text-align: center;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: rgba(238, 224, 193, .74);
+      font-size: 10px;
+      text-shadow: 0 1px 12px #000;
+    }
+
+    .brand strong {
+      display: block;
+      margin-bottom: 7px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(15px, 2vw, 21px);
+      font-weight: 400;
+      letter-spacing: .36em;
+      color: #e6d3aa;
+    }
+
+    .controls {
+      position: absolute;
+      right: clamp(14px, 3vw, 30px);
+      bottom: clamp(14px, 3vw, 26px);
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(221, 193, 133, .28);
+      border-radius: 999px;
+      padding: 9px 14px;
+      background: rgba(18, 17, 14, .72);
+      color: #d9c69e;
+      font: inherit;
+      font-size: 11px;
+      letter-spacing: .08em;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: border-color .2s, background .2s, transform .2s;
+    }
+
+    button:hover { border-color: rgba(235, 205, 143, .65); background: rgba(39, 34, 25, .88); }
+    button:active { transform: scale(.97); }
+    button:focus-visible { outline: 2px solid #d8b76d; outline-offset: 3px; }
+
+    .hint {
+      position: absolute;
+      left: clamp(14px, 3vw, 30px);
+      bottom: clamp(17px, 3vw, 29px);
+      color: rgba(230, 217, 190, .45);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 600px) {
+      .hint { display: none; }
+      .controls { right: 50%; translate: 50% 0; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="clock" aria-label="Animated mechanical clock showing the current time"></canvas>
+  <div class="ui">
+    <div class="brand"><strong>Chronométrie</strong>Mechanical movement · No. 1894</div>
+    <div class="hint">Local time · Canvas mechanism</div>
+    <div class="controls">
+      <button id="soundButton" type="button" aria-pressed="false">Sound: off</button>
+      <button id="motionButton" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const canvas = document.querySelector('#clock');
+      const ctx = canvas.getContext('2d');
+      const soundButton = document.querySelector('#soundButton');
+      const motionButton = document.querySelector('#motionButton');
+
+      let width = 0;
+      let height = 0;
+      let dpr = 1;
+      let scale = 1;
+      let centerX = 0;
+      let centerY = 0;
+      let running = true;
+      let soundOn = false;
+      let audioContext = null;
+      let lastTick = -1;
+      let lastFrame = performance.now();
+      let elapsed = 0;
+
+      const TAU = Math.PI * 2;
+      const brass = '#b99148';
+      const lightBrass = '#e0c179';
+      const darkBrass = '#6b4c22';
+      const steel = '#a7a49b';
+      const ink = '#11100d';
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        scale = Math.min(width / 900, height / 900);
+        centerX = width / 2;
+        centerY = height / 2 + Math.min(35, height * .035);
+      }
+
+      function line(x1, y1, x2, y2, color, lineWidth, cap = 'round') {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = cap;
+        ctx.stroke();
+      }
+
+      function circle(x, y, radius, fill, stroke, lineWidth = 1) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, TAU);
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
+      }
+
+      function drawGear(x, y, radius, teeth, angle, options = {}) {
+        const toothDepth = options.toothDepth ?? Math.max(3, radius * .105);
+        const inner = radius - toothDepth;
+        const hole = options.hole ?? radius * .2;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.shadowColor = 'rgba(0,0,0,.7)';
+        ctx.shadowBlur = 8 * scale;
+        ctx.shadowOffsetY = 4 * scale;
+
+        const gradient = ctx.createRadialGradient(-radius * .3, -radius * .35, radius * .08, 0, 0, radius);
+        gradient.addColorStop(0, options.highlight || '#f1d58d');
+        gradient.addColorStop(.38, options.color || brass);
+        gradient.addColorStop(1, options.dark || darkBrass);
+
+        ctx.beginPath();
+        for (let i = 0; i < teeth * 4; i++) {
+          const a = (i / (teeth * 4)) * TAU;
+          const phase = i % 4;
+          const r = phase === 1 || phase === 2 ? radius : inner;
+          const px = Math.cos(a) * r;
+          const py = Math.sin(a) * r;
+          i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = 'rgba(255,226,160,.45)';
+        ctx.lineWidth = 1.1 * scale;
+        ctx.stroke();
+
+        // Open-worked spokes make the wheels feel lighter and more mechanical.
+        ctx.globalCompositeOperation = 'destination-out';
+        const spokeCount = options.spokes || 6;
+        for (let i = 0; i < spokeCount; i++) {
+          ctx.save();
+          ctx.rotate((i / spokeCount) * TAU);
+          ctx.beginPath();
+          ctx.roundRect(hole * 1.2, -radius * .075, radius * .59, radius * .15, radius * .07);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        circle(0, 0, hole, options.hub || '#54401f', '#e0bf70', 1 * scale);
+        circle(0, 0, Math.max(2.5 * scale, hole * .28), '#171612', '#f0d58b', .8 * scale);
+
+        ctx.restore();
+      }
+
+      function drawScrew(x, y, radius, angle = 0) {
+        const gradient = ctx.createRadialGradient(x - radius * .4, y - radius * .4, 0, x, y, radius);
+        gradient.addColorStop(0, '#f0eee7');
+        gradient.addColorStop(.45, steel);
+        gradient.addColorStop(1, '#555650');
+        circle(x, y, radius, gradient, '#282824', 1 * scale);
+        const dx = Math.cos(angle) * radius * .58;
+        const dy = Math.sin(angle) * radius * .58;
+        line(x - dx, y - dy, x + dx, y + dy, '#343530', 1.3 * scale);
+      }
+
+      function drawPlate(radius) {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        ctx.shadowColor = 'rgba(0,0,0,.85)';
+        ctx.shadowBlur = 42 * scale;
+        ctx.shadowOffsetY = 18 * scale;
+        const rim = ctx.createRadialGradient(-radius * .25, -radius * .35, radius * .1, 0, 0, radius * 1.05);
+        rim.addColorStop(0, '#6c5732');
+        rim.addColorStop(.2, '#2e281d');
+        rim.addColorStop(.78, '#14130f');
+        rim.addColorStop(1, '#7b5c2c');
+        circle(0, 0, radius, rim, '#bd9551', 2.3 * scale);
+        ctx.shadowColor = 'transparent';
+        circle(0, 0, radius - 8 * scale, null, 'rgba(239,204,128,.3)', 1 * scale);
+
+        // Brushed metal texture.
+        ctx.globalAlpha = .11;
+        for (let r = radius * .19; r < radius * .94; r += 3.5 * scale) {
+          circle(0, 0, r, null, r % 2 ? '#cba760' : '#070706', .45 * scale);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+
+      function drawMechanism(t, radius) {
+        const s = scale;
+        const gearTime = t * .00034;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        // Lower pendulum and its brass rod.
+        const swing = Math.sin(t * .00245) * .23;
+        ctx.save();
+        ctx.translate(0, 93 * s);
+        ctx.rotate(swing);
+        line(0, -28 * s, 0, 250 * s, '#bd9650', 7 * s);
+        line(-1.4 * s, -25 * s, -1.4 * s, 245 * s, '#f0ce80', 1.2 * s);
+        const bobGradient = ctx.createRadialGradient(-16 * s, 213 * s, 2 * s, 0, 224 * s, 55 * s);
+        bobGradient.addColorStop(0, '#f3d991');
+        bobGradient.addColorStop(.42, '#ad8139');
+        bobGradient.addColorStop(1, '#4d3215');
+        circle(0, 225 * s, 48 * s, bobGradient, '#dfb762', 2 * s);
+        circle(0, 225 * s, 37 * s, null, 'rgba(255,228,163,.3)', 1 * s);
+        ctx.restore();
+
+        // Gear train behind the dial.
+        drawGear(-113 * s, 70 * s, 88 * s, 36, gearTime, { hole: 17 * s, spokes: 6 });
+        drawGear(99 * s, 96 * s, 70 * s, 28, -gearTime * 1.28, { color: '#a47a37', hole: 14 * s, spokes: 5 });
+        drawGear(-151 * s, -78 * s, 50 * s, 22, -gearTime * 2.15, { color: '#c49b51', hole: 10 * s, spokes: 5 });
+        drawGear(145 * s, -72 * s, 44 * s, 19, gearTime * 2.85, { color: '#9e7637', hole: 9 * s, spokes: 5 });
+
+        // Escapement wheel and animated anchor.
+        drawGear(0, -127 * s, 46 * s, 18, -gearTime * 5.7, { color: '#d4b267', dark: '#765326', hole: 9 * s, spokes: 6, toothDepth: 8 * s });
+        ctx.save();
+        ctx.translate(0, -168 * s);
+        ctx.rotate(-swing * .48);
+        ctx.strokeStyle = '#a8a59c';
+        ctx.lineWidth = 7 * s;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-39 * s, 12 * s);
+        ctx.quadraticCurveTo(0, 39 * s, 39 * s, 12 * s);
+        ctx.stroke();
+        line(-39 * s, 12 * s, -32 * s, 29 * s, '#d2cec2', 8 * s);
+        line(39 * s, 12 * s, 32 * s, 29 * s, '#d2cec2', 8 * s);
+        circle(0, 27 * s, 7 * s, '#4a4943', '#d7d2c5', 1 * s);
+        ctx.restore();
+
+        // Curved bridges over the wheel train.
+        ctx.strokeStyle = '#8f6b34';
+        ctx.lineWidth = 14 * s;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-200 * s, 2 * s);
+        ctx.bezierCurveTo(-94 * s, -30 * s, 63 * s, -22 * s, 202 * s, 26 * s);
+        ctx.stroke();
+        ctx.strokeStyle = '#d2ae64';
+        ctx.lineWidth = 2 * s;
+        ctx.stroke();
+
+        [[-202, 2, .2], [201, 27, 1.1], [-211, 167, 2.4], [211, 167, -.4]].forEach(([x, y, a]) => drawScrew(x * s, y * s, 8 * s, a));
+        ctx.restore();
+      }
+
+      function drawDial(radius) {
+        const s = scale;
+        const dialRadius = radius * .67;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        // Smoked glass over the movement.
+        const glass = ctx.createRadialGradient(-dialRadius * .35, -dialRadius * .45, 0, 0, 0, dialRadius);
+        glass.addColorStop(0, 'rgba(218,205,173,.08)');
+        glass.addColorStop(.5, 'rgba(7,8,7,.27)');
+        glass.addColorStop(1, 'rgba(0,0,0,.59)');
+        circle(0, 0, dialRadius, glass, '#b8914f', 3 * s);
+        circle(0, 0, dialRadius - 8 * s, null, 'rgba(223,192,126,.42)', .8 * s);
+
+        // Minute track and hour indexes.
+        for (let i = 0; i < 60; i++) {
+          const angle = i / 60 * TAU - Math.PI / 2;
+          const major = i % 5 === 0;
+          const outer = dialRadius - 17 * s;
+          const inner = outer - (major ? 19 : 8) * s;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          line(cos * inner, sin * inner, cos * outer, sin * outer,
+            major ? '#e2ca97' : 'rgba(225,207,168,.58)', major ? 3.2 * s : 1 * s, 'butt');
+        }
+
+        ctx.fillStyle = '#dcc28d';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `${18 * s}px Georgia, serif`;
+        const roman = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+        roman.forEach((numeral, i) => {
+          const a = i / 12 * TAU - Math.PI / 2;
+          const r = dialRadius - 51 * s;
+          ctx.fillText(numeral, Math.cos(a) * r, Math.sin(a) * r + 1 * s);
+        });
+
+        // Small seconds subdial.
+        const subY = 105 * s;
+        circle(0, subY, 43 * s, 'rgba(8,8,7,.58)', 'rgba(218,185,117,.6)', 1.2 * s);
+        for (let i = 0; i < 30; i++) {
+          const a = i / 30 * TAU - Math.PI / 2;
+          const r1 = (i % 5 === 0 ? 32 : 35) * s;
+          const r2 = 38 * s;
+          line(Math.cos(a) * r1, subY + Math.sin(a) * r1, Math.cos(a) * r2, subY + Math.sin(a) * r2,
+            'rgba(226,201,150,.72)', i % 5 === 0 ? 1.5 * s : .7 * s, 'butt');
+        }
+        ctx.font = `${7.5 * s}px ui-sans-serif, sans-serif`;
+        ctx.letterSpacing = `${2 * s}px`;
+        ctx.fillStyle = 'rgba(226,206,163,.7)';
+        ctx.fillText('SECONDS', 0, subY - 13 * s);
+
+        ctx.restore();
+      }
+
+      function hand(angle, length, tail, widthValue, color, outline = null) {
+        const s = scale;
+        ctx.save();
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(-widthValue * .55 * s, tail * s);
+        ctx.lineTo(-widthValue * .2 * s, -length * .82 * s);
+        ctx.lineTo(0, -length * s);
+        ctx.lineTo(widthValue * .2 * s, -length * .82 * s);
+        ctx.lineTo(widthValue * .55 * s, tail * s);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.shadowColor = 'rgba(0,0,0,.7)';
+        ctx.shadowBlur = 5 * s;
+        ctx.shadowOffsetY = 3 * s;
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        if (outline) { ctx.strokeStyle = outline; ctx.lineWidth = 1 * s; ctx.stroke(); }
+        ctx.restore();
+      }
+
+      function drawHands(now, radius) {
+        const s = scale;
+        const millis = now.getMilliseconds();
+        const seconds = now.getSeconds() + millis / 1000;
+        const minutes = now.getMinutes() + seconds / 60;
+        const hours = (now.getHours() % 12) + minutes / 60;
+        const dialRadius = radius * .67;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        hand(hours / 12 * TAU, dialRadius * .48 / s, 15, 13, '#d8c398', '#241d11');
+        hand(minutes / 60 * TAU, dialRadius * .72 / s, 19, 9, '#e5d3ac', '#241d11');
+
+        // The seconds hand lives inside the lower subdial.
+        const subY = 105 * s;
+        ctx.save();
+        ctx.translate(0, subY);
+        ctx.rotate(seconds / 60 * TAU);
+        line(0, 8 * s, 0, -34 * s, '#b84b39', 1.4 * s);
+        circle(0, 0, 3.8 * s, '#b84b39', '#3a1712', .6 * s);
+        ctx.restore();
+
+        const pinGradient = ctx.createRadialGradient(-3 * s, -3 * s, 0, 0, 0, 12 * s);
+        pinGradient.addColorStop(0, '#f0d69b');
+        pinGradient.addColorStop(.5, '#94703a');
+        pinGradient.addColorStop(1, '#271d10');
+        circle(0, 0, 11 * s, pinGradient, '#e0bd70', 1 * s);
+        circle(0, 0, 3 * s, '#191712');
+        ctx.restore();
+      }
+
+      function drawVignette() {
+        const gradient = ctx.createRadialGradient(centerX, centerY, Math.min(width, height) * .22, centerX, centerY, Math.max(width, height) * .68);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(.68, 'rgba(0,0,0,.12)');
+        gradient.addColorStop(1, 'rgba(0,0,0,.72)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      function tickSound(seconds) {
+        if (!soundOn || !audioContext || seconds === lastTick) return;
+        lastTick = seconds;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+        oscillator.type = 'triangle';
+        oscillator.frequency.value = seconds % 2 ? 980 : 1220;
+        filter.type = 'bandpass';
+        filter.frequency.value = 1150;
+        filter.Q.value = 2.5;
+        const now = audioContext.currentTime;
+        gain.gain.setValueAtTime(.0001, now);
+        gain.gain.exponentialRampToValueAtTime(.055, now + .004);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + .045);
+        oscillator.connect(filter).connect(gain).connect(audioContext.destination);
+        oscillator.start(now);
+        oscillator.stop(now + .05);
+      }
+
+      function draw(frameTime) {
+        const delta = Math.min(frameTime - lastFrame, 50);
+        lastFrame = frameTime;
+        if (running) elapsed += delta;
+
+        ctx.clearRect(0, 0, width, height);
+        const radius = Math.min(360 * scale, Math.min(width, height) * .43);
+        const now = new Date();
+
+        drawPlate(radius);
+        drawMechanism(elapsed, radius);
+        drawDial(radius);
+        drawHands(now, radius);
+        drawVignette();
+        tickSound(now.getSeconds());
+
+        requestAnimationFrame(draw);
+      }
+
+      soundButton.addEventListener('click', async () => {
+        soundOn = !soundOn;
+        if (soundOn) {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          await audioContext.resume();
+        }
+        soundButton.textContent = `Sound: ${soundOn ? 'on' : 'off'}`;
+        soundButton.setAttribute('aria-pressed', String(soundOn));
+      });
+
+      motionButton.addEventListener('click', () => {
+        running = !running;
+        motionButton.textContent = running ? 'Pause' : 'Resume';
+        motionButton.setAttribute('aria-pressed', String(!running));
+      });
+
+      window.addEventListener('resize', resize, { passive: true });
+      document.addEventListener('visibilitychange', () => { lastFrame = performance.now(); });
+      resize();
+      requestAnimationFrame(draw);
+    })();
+  </script>
+</body>
+</html>
