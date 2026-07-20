@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机械时钟 · Kimi K3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: radial-gradient(ellipse at center, #16213e 0%, #0d0d1a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            filter: drop-shadow(0 0 40px rgba(0, 0, 0, 0.9));
+        }
+    </style>
+</head>
+<body>
+    <canvas id="clock" width="600" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('clock');
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width;
+        const H = canvas.height;
+        const CX = W / 2;
+        const CY = H / 2;
+        const R = 250; // 表盘半径
+
+        // ---------- 工具函数 ----------
+        function drawGear(x, y, outerR, teeth, rotation, opts = {}) {
+            const innerR = opts.innerR ?? outerR * 0.82;
+            const hubR = opts.hubR ?? outerR * 0.18;
+            const color = opts.color ?? '#c9a227';
+            const dark = opts.dark ?? '#8a6d1a';
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+
+            // 齿
+            ctx.beginPath();
+            const step = (Math.PI * 2) / teeth;
+            for (let i = 0; i < teeth; i++) {
+                const a = i * step;
+                const w = step * 0.22;
+                ctx.arc(0, 0, outerR, a - w, a + w);
+                ctx.arc(0, 0, innerR, a + w, a + step - w);
+            }
+            ctx.closePath();
+            const g = ctx.createRadialGradient(0, 0, hubR, 0, 0, outerR);
+            g.addColorStop(0, color);
+            g.addColorStop(0.7, dark);
+            g.addColorStop(1, color);
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // 辐条挖空效果
+            ctx.globalCompositeOperation = 'destination-out';
+            const holes = opts.holes ?? 5;
+            for (let i = 0; i < holes; i++) {
+                const a = (Math.PI * 2 * i) / holes;
+                ctx.beginPath();
+                ctx.arc(Math.cos(a) * outerR * 0.55, Math.sin(a) * outerR * 0.55, outerR * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+
+            // 中心轴
+            ctx.beginPath();
+            ctx.arc(0, 0, hubR, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, 0, hubR * 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawHand(angle, length, width, color, tail = 0) {
+            ctx.save();
+            ctx.translate(CX, CY);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(-width, tail);
+            ctx.lineTo(0, -length);
+            ctx.lineTo(width, tail);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 6;
+            ctx.shadowOffsetY = 3;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ---------- 表壳 ----------
+        function drawCase() {
+            // 外圈金属环
+            let g = ctx.createRadialGradient(CX, CY, R * 0.9, CX, CY, R * 1.12);
+            g.addColorStop(0, '#3a3a3a');
+            g.addColorStop(0.45, '#d4c58a');
+            g.addColorStop(0.55, '#f5ead0');
+            g.addColorStop(0.7, '#9a8a4a');
+            g.addColorStop(1, '#2a2a2a');
+            ctx.beginPath();
+            ctx.arc(CX, CY, R * 1.1, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+
+            // 表盘
+            g = ctx.createRadialGradient(CX, CY - R * 0.3, R * 0.1, CX, CY, R);
+            g.addColorStop(0, '#2b2b33');
+            g.addColorStop(1, '#141418');
+            ctx.beginPath();
+            ctx.arc(CX, CY, R, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+        }
+
+        // ---------- 镂空机芯（背景齿轮） ----------
+        function drawMovement(t, secAngle) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(CX, CY, R, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.globalAlpha = 0.5;
+
+            // 主发条盒（慢）
+            drawGear(CX - R * 0.45, CY + R * 0.4, R * 0.42, 36, t * 0.02,
+                { color: '#b8963a', dark: '#6d5518', holes: 6 });
+            // 中心轮
+            drawGear(CX + R * 0.5, CY + R * 0.35, R * 0.3, 28, -t * 0.05 + 0.1,
+                { color: '#c9a227', dark: '#7a5f1c' });
+            // 秒轮（跟秒针同步）
+            drawGear(CX - R * 0.35, CY - R * 0.45, R * 0.24, 22, -secAngle,
+                { color: '#d4af37', dark: '#8a6d1a', holes: 4 });
+            // 小齿轮
+            drawGear(CX + R * 0.42, CY - R * 0.5, R * 0.16, 16, secAngle * 1.6,
+                { color: '#a8873a', dark: '#5f4a15', holes: 3 });
+
+            ctx.restore();
+        }
+
+        // ---------- 刻度与数字 ----------
+        function drawDial() {
+            const roman = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+            ctx.save();
+            ctx.translate(CX, CY);
+            for (let i = 0; i < 60; i++) {
+                const a = (Math.PI * 2 * i) / 60;
+                const isHour = i % 5 === 0;
+                ctx.save();
+                ctx.rotate(a);
+                ctx.beginPath();
+                ctx.moveTo(0, -R * 0.98);
+                ctx.lineTo(0, -R * (isHour ? 0.88 : 0.94));
+                ctx.strokeStyle = isHour ? '#e8d9a0' : 'rgba(232,217,160,0.45)';
+                ctx.lineWidth = isHour ? 4 : 1.5;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.restore();
+            }
+            // 罗马数字
+            ctx.fillStyle = '#e8d9a0';
+            ctx.font = `${R * 0.11}px Georgia, serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i < 12; i++) {
+                const a = (Math.PI * 2 * i) / 12;
+                ctx.fillText(roman[i], Math.sin(a) * R * 0.76, -Math.cos(a) * R * 0.76);
+            }
+            // 品牌字
+            ctx.font = `${R * 0.06}px Georgia, serif`;
+            ctx.fillStyle = 'rgba(232,217,160,0.7)';
+            ctx.fillText('KIMI K3', 0, -R * 0.38);
+            ctx.font = `${R * 0.045}px Georgia, serif`;
+            ctx.fillText('AUTOMATIC', 0, R * 0.55);
+            ctx.restore();
+        }
+
+        // ---------- 小秒盘 ----------
+        function drawSubSecond(secAngle) {
+            const sx = CX;
+            const sy = CY + R * 0.32;
+            const sr = R * 0.16;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(232,217,160,0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            for (let i = 0; i < 12; i++) {
+                const a = (Math.PI * 2 * i) / 12;
+                ctx.beginPath();
+                ctx.moveTo(sx + Math.sin(a) * sr * 0.95, sy - Math.cos(a) * sr * 0.95);
+                ctx.lineTo(sx + Math.sin(a) * sr * 0.8, sy - Math.cos(a) * sr * 0.8);
+                ctx.strokeStyle = '#e8d9a0';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+            // 小秒针
+            ctx.translate(sx, sy);
+            ctx.rotate(secAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, sr * 0.25);
+            ctx.lineTo(0, -sr * 0.9);
+            ctx.strokeStyle = '#d4af37';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // ---------- 摆轮（装饰动画） ----------
+        function drawBalance(t) {
+            const bx = CX + R * 0.42;
+            const by = CY - R * 0.12;
+            const br = R * 0.13;
+            const swing = Math.sin(t * 6) * 0.9; // 来回摆动
+            ctx.save();
+            ctx.globalAlpha = 0.85;
+            ctx.translate(bx, by);
+            ctx.rotate(swing);
+            ctx.beginPath();
+            ctx.arc(0, 0, br, 0, Math.PI * 2);
+            ctx.strokeStyle = '#d4af37';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            for (let i = 0; i < 3; i++) {
+                const a = (Math.PI * 2 * i) / 3;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(a) * br, Math.sin(a) * br);
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.arc(0, 0, br * 0.18, 0, Math.PI * 2);
+            ctx.fillStyle = '#e8d9a0';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ---------- 主循环 ----------
+        function render(now) {
+            const t = now / 1000;
+
+            const d = new Date();
+            const ms = d.getMilliseconds();
+            const sec = d.getSeconds() + ms / 1000;
+            const min = d.getMinutes() + sec / 60;
+            const hr = (d.getHours() % 12) + min / 60;
+
+            const secAngle = (Math.PI * 2 * sec) / 60;
+            const minAngle = (Math.PI * 2 * min) / 60;
+            const hrAngle = (Math.PI * 2 * hr) / 12;
+
+            ctx.clearRect(0, 0, W, H);
+
+            drawCase();
+            drawMovement(t, secAngle);
+            drawBalance(t);
+            drawDial();
+            drawSubSecond(secAngle);
+
+            // 指针
+            drawHand(hrAngle, R * 0.45, R * 0.035, '#e8d9a0', R * 0.1);
+            drawHand(minAngle, R * 0.68, R * 0.025, '#e8d9a0', R * 0.12);
+            // 大秒针（红色）
+            drawHand(secAngle, R * 0.82, R * 0.008, '#c0392b', R * 0.18);
+
+            // 中心轴帽
+            ctx.beginPath();
+            ctx.arc(CX, CY, R * 0.03, 0, Math.PI * 2);
+            ctx.fillStyle = '#d4af37';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(CX, CY, R * 0.012, 0, Math.PI * 2);
+            ctx.fillStyle = '#c0392b';
+            ctx.fill();
+
+            // 玻璃反光
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(CX, CY, R, 0, Math.PI * 2);
+            ctx.clip();
+            const glare = ctx.createLinearGradient(CX - R, CY - R, CX + R * 0.3, CY + R * 0.1);
+            glare.addColorStop(0, 'rgba(255,255,255,0.10)');
+            glare.addColorStop(0.4, 'rgba(255,255,255,0.02)');
+            glare.addColorStop(0.6, 'rgba(255,255,255,0)');
+            ctx.fillStyle = glare;
+            ctx.fillRect(CX - R, CY - R, R * 2, R * 2);
+            ctx.restore();
+
+            requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+    </script>
+</body>
+</html>
