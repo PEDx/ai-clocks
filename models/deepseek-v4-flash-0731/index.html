@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机械时钟 · Mechanical Clock</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Georgia, "Songti SC", "SimSun", serif;
+            background: radial-gradient(circle at 50% 35%, #2a3240 0%, #131820 55%, #0a0d12 100%);
+            color: #e8dcc0;
+        }
+
+        h1 {
+            font-weight: normal;
+            letter-spacing: 4px;
+            font-size: 18px;
+            margin-bottom: 6px;
+            color: #cbb88f;
+        }
+
+        figcaption {
+            font-size: 11px;
+            color: #7a8470;
+            letter-spacing: 1px;
+            margin-top: 12px;
+        }
+
+        canvas {
+            cursor: pointer;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MECHANICAL CLOCK</h1>
+    <canvas id="clock" width="500" height="500" aria-label="机械时钟"></canvas>
+    <figcaption>点按画布可暂停 / 恢复 · 短画布指针为秒针</figcaption>
+
+    <script>
+        (function () {
+            'use strict'
+
+            const canvas = document.getElementById('clock')
+            const ctx = canvas.getContext('2d')
+
+            const SIZE = canvas.width
+            const CENTER = SIZE / 2
+            const DPR = (window.devicePixelRatio || 1)
+            canvas.width = SIZE * DPR
+            canvas.height = SIZE * DPR
+            canvas.style.width = SIZE + 'px'
+            canvas.style.height = SIZE + 'px'
+            ctx.scale(DPR, DPR)
+
+            let paused = false
+            canvas.addEventListener('click', function () { paused = !paused })
+
+            // ---- 几何工具 ----
+            function rad(deg) { return (deg * Math.PI) / 180 }
+
+            // 圆环刻度（机械表常见的两层刻度）
+            function drawRing(radius, count, innerR, outerR, width, color) {
+                ctx.save()
+                ctx.lineCap = 'round'
+                ctx.strokeStyle = color
+                ctx.lineWidth = width
+                for (let i = 0;i < count;i++) {
+                    const a = rad(((360 / count) * i) - 90)
+                    const x1 = CENTER + Math.cos(a) * innerR
+                    const y1 = CENTER + Math.sin(a) * innerR
+                    const x2 = CENTER + Math.cos(a) * outerR
+                    const y2 = CENTER + Math.sin(a) * outerR
+                    ctx.beginPath()
+                    ctx.moveTo(x1, y1)
+                    ctx.lineTo(x2, y2)
+                    ctx.stroke()
+                }
+                ctx.restore()
+            }
+
+            function drawNumber(n, radius, fontSize, color) {
+                const a = rad((n * 30) - 90)
+                const x = CENTER + Math.cos(a) * radius
+                const y = CENTER + Math.sin(a) * radius
+                ctx.save()
+                ctx.fillStyle = color
+                ctx.font = fontSize + 'px Georgia, "Songti SC", serif'
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(String(n), x, y)
+                ctx.restore()
+            }
+
+            // 罗马数字
+            const ROMAN = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
+
+            // 3 针
+            function drawHand(length, width, color, angleDeg) {
+                const a = rad(angleDeg)
+                ctx.save()
+                ctx.strokeStyle = color
+                ctx.lineWidth = width
+                ctx.lineCap = 'round'
+                ctx.beginPath()
+                ctx.moveTo(CENTER - Math.cos(a) * (length * 0.12), CENTER - Math.sin(a) * (length * 0.12))
+                ctx.lineTo(CENTER + Math.cos(a) * length, CENTER + Math.sin(a) * length)
+                ctx.stroke()
+                ctx.restore()
+            }
+
+            function drawFrame() {
+                // 外链表壳
+                ctx.fillStyle = '#1a212b'
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 470 / 2, 0, rad(360))
+                ctx.fill()
+                ctx.strokeStyle = '#55606f'
+                ctx.lineWidth = 6
+                ctx.stroke()
+
+                // 内衬
+                ctx.fillStyle = '#e6d9b8'
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 435 / 2, 0, rad(360))
+                ctx.fill()
+            }
+
+            function drawFace() {
+                // 表盘
+                const dialGrad = ctx.createRadialGradient(CENTER, CENTER, 60, CENTER, CENTER, 200)
+                dialGrad.addColorStop(0, '#f5ecd8')
+                dialGrad.addColorStop(1, '#e2d4ac')
+                ctx.fillStyle = dialGrad
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 200, 0, rad(360))
+                ctx.fill()
+
+                ctx.strokeStyle = '#8a7a45'
+                ctx.lineWidth = 1.2
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 200, 0, rad(360))
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 184, 0, rad(360))
+                ctx.stroke()
+
+                // 分钟刻度（细）
+                drawRing(176, 60, 172, 176, 1.2, '#7c6c3a')
+                // 小时主刻度（粗）
+                drawRing(176, 12, 164, 179, 3.5, '#4a3f1e')
+
+                // 罗马数字
+                for (let i = 0;i < 12;i++) {
+                    drawNumber(ROMAN[i], 146, 16, '#3d341d')
+                }
+            }
+
+            function drawSub(centerDeg, r, label) {
+                const a = rad(centerDeg)
+                const cx = CENTER + Math.cos(a) * 88
+                const cy = CENTER + Math.sin(a) * 88
+                ctx.save()
+                ctx.strokeStyle = '#5b4f27'
+                ctx.lineWidth = 1
+                ctx.beginPath()
+                ctx.arc(cx, cy, r, 0, rad(360))
+                ctx.stroke()
+                ctx.fillStyle = '#3d341d'
+                ctx.font = '6px Georgia, serif'
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(label, cx, cy - r - 5)
+                ctx.restore()
+            }
+
+            // ---- 齿轮 ----
+            function drawGear(cx, cy, teeth, R, r, toothWidth, color) {
+                ctx.save()
+                ctx.fillStyle = color
+                ctx.translate(cx, cy)
+                ctx.beginPath()
+                for (let i = 0;i < 12;i++) {
+                    const start = rad((i / 12) * 360)
+                    const a0 = start
+                    const a1 = start + rad(12)
+                    const a2 = start + rad(24)
+                    const a3 = start + rad(36)
+                    ctx.moveTo(Math.cos(a0) * R, Math.sin(a0) * R)
+                    ctx.lineTo(Math.cos(a1) * (r + toothWidth), Math.sin(a1) * (r + toothWidth))
+                    ctx.lineTo(Math.cos(a2) * (r + toothWidth), Math.sin(a2) * (r + toothWidth))
+                    ctx.lineTo(Math.cos(a3) * R, Math.sin(a3) * R)
+                }
+                ctx.closePath()
+                ctx.fill()
+                ctx.strokeStyle = '#1b1b1b'
+                ctx.lineWidth = 0.6
+                ctx.stroke()
+                ctx.restore()
+            }
+
+            function drawGears(tick) {
+                // 中心周边的装饰性齿轮（机械感），静止
+                ctx.save()
+                ctx.translate(CENTER, CENTER)
+                ctx.rotate(rad(tick / 10))
+                drawGear(0, 0, 12, 38, 33, 5, '#8c7a44')
+                ctx.restore()
+
+                ctx.save()
+                ctx.translate(CENTER, CENTER)
+                ctx.rotate(rad(-tick / 16) + rad(8))
+                drawGear(102, 0, 10, 22, 18, 4, '#7f6f3c')
+                ctx.restore()
+
+                ctx.save()
+                ctx.translate(CENTER, CENTER)
+                ctx.rotate(rad(tick / 25))
+                drawGear(-78, 66, 8, 16, 13, 3, '#8c7a44')
+                ctx.restore()
+            }
+
+            function drawHands(t) {
+                const ms = t.getMilliseconds()
+                const sec = t.getSeconds()
+                const min = t.getMinutes()
+                const hr = t.getHours() % 12
+
+                const secAng = (sec * 6) + (ms / 1000) * 6
+                const minAng = (min * 6) + (sec / 60) * 6
+                const hrAng = (hr * 30) + (min / 60) * 30
+
+                drawHand(140, 8, '#33302a', hrAng)
+                drawHand(165, 5, '#3a372f', minAng)
+                // 红色秒针（尾翼 + 配重块）
+                ctx.save()
+                ctx.strokeStyle = '#c0392b'
+                ctx.lineWidth = 1.4
+                ctx.lineCap = 'round'
+                const a = rad(secAng)
+                ctx.beginPath()
+                ctx.moveTo(CENTER - Math.cos(a) * 22, CENTER - Math.sin(a) * 22)
+                ctx.lineTo(CENTER + Math.cos(a) * 178, CENTER + Math.sin(a) * 178)
+                ctx.stroke()
+                ctx.fillStyle = '#c0392b'
+                ctx.beginPath()
+                ctx.arc(CENTER - Math.cos(a) * 18, CENTER - Math.sin(a) * 18, 4, 0, rad(360))
+                ctx.fill()
+                ctx.restore()
+            }
+
+            function render(t) {
+                drawFrame()
+                drawFace()
+
+                // 中央齿轮装饰
+                drawGears(performance.now() / 1000)
+
+                // 小表盘（日期 / 月份，装饰性）
+                drawSub(0, 14, '31')
+                drawSub(180, 14, 'AM')
+
+                drawHands(t)
+
+                // 中心铆钉
+                ctx.fillStyle = '#1f1f1f'
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 7, 0, rad(360))
+                ctx.fill()
+                ctx.fillStyle = '#e8dcc0'
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 3, 0, rad(360))
+                ctx.fill()
+
+                // 玻璃高光
+                ctx.save()
+                const g = ctx.createRadialGradient(CENTER - 70, CENTER - 80, 20, CENTER, CENTER, 200)
+                g.addColorStop(0, 'rgba(255,255,255,0.18)')
+                g.addColorStop(0.5, 'rgba(255,255,255,0)')
+                g.addColorStop(1, 'rgba(255,255,255,0.05)')
+                ctx.fillStyle = g
+                ctx.beginPath()
+                ctx.arc(CENTER, CENTER, 200, 0, rad(360))
+                ctx.fill()
+                ctx.restore()
+            }
+
+            // 清理上面遗留的占位函数：全部已合并进 drawHands
+            function tick() {
+                if (!paused) {
+                    ctx.clearRect(0, 0, SIZE, SIZE)
+                    render(new Date())
+                } else {
+                    // 暂停时重绘背景保持画面
+                    ctx.clearRect(0, 0, SIZE, SIZE)
+                    render(new Date())
+                }
+                requestAnimationFrame(tick)
+            }
+
+            tick()
+        })();
+    </script>
+</body>
+
+</html>
