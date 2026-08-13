@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mechanical Clock</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 30%, #30353d 0%, #171b21 55%, #0d0f13 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: min(92vmin, 92vmin);
+      height: min(92vmin, 92vmin);
+      border-radius: 50%;
+      filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.65));
+    }
+
+    .caption {
+      position: fixed;
+      bottom: 4vmin;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #aab2bd;
+      font-size: clamp(12px, 2vmin, 16px);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="clock" aria-label="Animated mechanical clock"></canvas>
+  <div class="caption">Mechanical Clock · Canvas</div>
+
+  <script>
+    "use strict"
+
+    const canvas = document.getElementById("clock")
+    const ctx = canvas.getContext("2d")
+
+    const SIZE = 1000
+    const DPR = Math.min(window.devicePixelRatio || 1, 2)
+    canvas.width = SIZE * DPR
+    canvas.height = SIZE * DPR
+    ctx.scale(DPR, DPR)
+
+    const CX = SIZE / 2
+    const CY = SIZE / 2
+    const R = SIZE * 0.46
+
+    const COLORS = {
+      brass: "#c9a45c",
+      brassLight: "#e5c783",
+      brassDark: "#8b6a2f",
+      bronze: "#8a5a2b",
+      steel: "#6f7a88",
+      steelLight: "#aab6c2",
+      steelDark: "#39434e",
+      face: "#f5efdf",
+      faceShade: "#d8cfb8",
+      ink: "#2a2722",
+      shadow: "rgba(0, 0, 0, 0.45)",
+    }
+
+    function drawGear(cx, cy, radius, teeth, toothDepth, angle, fill, stroke) {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle)
+      ctx.beginPath()
+
+      const step = (Math.PI * 2) / teeth
+      const outer = radius + toothDepth
+      const root = radius - toothDepth * 0.45
+
+      for (let i = 0;i < teeth;i++) {
+        const a0 = i * step
+        const a1 = a0 + step * 0.42
+        const a2 = a0 + step * 0.58
+        const a3 = a0 + step
+
+        ctx.lineTo(Math.cos(a0) * outer, Math.sin(a0) * outer)
+        ctx.lineTo(Math.cos(a1) * root, Math.sin(a1) * root)
+        ctx.lineTo(Math.cos(a2) * root, Math.sin(a2) * root)
+        ctx.lineTo(Math.cos(a3) * outer, Math.sin(a3) * outer)
+      }
+
+      ctx.closePath()
+      ctx.fillStyle = fill
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = Math.max(1, radius * 0.02)
+      ctx.fill()
+      ctx.stroke()
+
+      // Inner hub
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.34, 0, Math.PI * 2)
+      ctx.fillStyle = fill
+      ctx.fill()
+      ctx.stroke()
+
+      // Central axle hole
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.12, 0, Math.PI * 2)
+      ctx.fillStyle = stroke
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawSpokedWheel(cx, cy, radius, spokes, angle, fill, stroke) {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle)
+
+      ctx.beginPath()
+      ctx.arc(0, 0, radius, 0, Math.PI * 2)
+      ctx.fillStyle = "rgba(0,0,0,0.08)"
+      ctx.fill()
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = Math.max(1.5, radius * 0.045)
+      ctx.stroke()
+
+      for (let i = 0;i < spokes;i++) {
+        const a = (i / spokes) * Math.PI * 2
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius)
+        ctx.stroke()
+      }
+
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2)
+      ctx.fillStyle = fill
+      ctx.fill()
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = Math.max(1, radius * 0.02)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    function drawClockFace(t) {
+      // Face plate with subtle metallic rim
+      const rim = ctx.createRadialGradient(CX - R * 0.2, CY - R * 0.25, R * 0.1, CX, CY, R)
+      rim.addColorStop(0, "#f8f2e3")
+      rim.addColorStop(0.72, COLORS.face)
+      rim.addColorStop(1, COLORS.faceShade)
+      ctx.beginPath()
+      ctx.arc(CX, CY, R, 0, Math.PI * 2)
+      ctx.fillStyle = rim
+      ctx.fill()
+
+      // Minute tick ring
+      for (let i = 0;i < 60;i++) {
+        const a = (i / 60) * Math.PI * 2
+        const major = i % 5 === 0
+        const r1 = R * (major ? 0.91 : 0.94)
+        const r2 = R * 0.97
+        ctx.beginPath()
+        ctx.moveTo(CX + Math.cos(a) * r1, CY + Math.sin(a) * r1)
+        ctx.lineTo(CX + Math.cos(a) * r2, CY + Math.sin(a) * r2)
+        ctx.strokeStyle = major ? COLORS.ink : "rgba(42, 39, 34, 0.55)"
+        ctx.lineWidth = major ? 5 : 2
+        ctx.lineCap = "round"
+        ctx.stroke()
+      }
+
+      // Hour numerals
+      ctx.fillStyle = COLORS.ink
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      const numeralR = R * 0.78
+      const roman = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"]
+      ctx.font = `600 ${R * 0.095}px Georgia, "Times New Roman", serif`
+      for (let i = 0;i < 12;i++) {
+        const a = (i / 12) * Math.PI * 2
+        ctx.fillText(roman[i], CX + Math.cos(a) * numeralR, CY + Math.sin(a) * numeralR)
+      }
+
+      // Inner decorative circle
+      ctx.beginPath()
+      ctx.arc(CX, CY, R * 0.62, 0, Math.PI * 2)
+      ctx.strokeStyle = "rgba(42, 39, 34, 0.18)"
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Subtle sunburst behind the hands
+      ctx.save()
+      ctx.globalAlpha = 0.07
+      ctx.beginPath()
+      for (let i = 0;i < 72;i++) {
+        const a = (i / 72) * Math.PI * 2
+        const r = i % 2 === 0 ? R * 0.55 : R * 0.47
+        ctx.moveTo(CX, CY)
+        ctx.lineTo(CX + Math.cos(a) * r, CY + Math.sin(a) * r)
+      }
+      ctx.strokeStyle = COLORS.ink
+      ctx.lineWidth = 1
+      ctx.stroke()
+      ctx.restore()
+
+      // Seconds track
+      ctx.beginPath()
+      ctx.arc(CX, CY, R * 0.18, 0, Math.PI * 2)
+      ctx.strokeStyle = "rgba(42, 39, 34, 0.16)"
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Center cap
+      ctx.beginPath()
+      ctx.arc(CX, CY, R * 0.06, 0, Math.PI * 2)
+      ctx.fillStyle = COLORS.brassDark
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(CX, CY, R * 0.028, 0, Math.PI * 2)
+      ctx.fillStyle = COLORS.ink
+      ctx.fill()
+    }
+
+    function drawHand(angle, length, width, tail, color, tip) {
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      ctx.save()
+      ctx.translate(CX, CY)
+      ctx.rotate(angle)
+      ctx.shadowColor = COLORS.shadow
+      ctx.shadowBlur = 12
+      ctx.shadowOffsetY = 5
+      ctx.beginPath()
+      ctx.moveTo(-tail, 0)
+      ctx.lineTo(length, 0)
+      ctx.lineTo(tip, -width)
+      ctx.lineTo(0, 0)
+      ctx.closePath()
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawHands(now) {
+      const ms = now.getMilliseconds()
+      const s = now.getSeconds() + ms / 1000
+      const m = now.getMinutes() + s / 60
+      const h = (now.getHours() % 12) + m / 60
+
+      const secondAngle = (s / 60) * Math.PI * 2 - Math.PI / 2
+      const minuteAngle = (m / 60) * Math.PI * 2 - Math.PI / 2
+      const hourAngle = (h / 12) * Math.PI * 2 - Math.PI / 2
+
+      drawHand(hourAngle, R * 0.5, R * 0.055, R * 0.12, COLORS.ink, R * 0.02)
+      drawHand(minuteAngle, R * 0.72, R * 0.04, R * 0.12, COLORS.steelDark, R * 0.015)
+
+      // Second hand
+      ctx.save()
+      ctx.translate(CX, CY)
+      ctx.rotate(secondAngle)
+      ctx.strokeStyle = COLORS.brassDark
+      ctx.lineWidth = R * 0.012
+      ctx.lineCap = "round"
+      ctx.beginPath()
+      ctx.moveTo(-R * 0.15, 0)
+      ctx.lineTo(R * 0.72, 0)
+      ctx.stroke()
+      ctx.fillStyle = COLORS.brassDark
+      ctx.beginPath()
+      ctx.arc(R * 0.72, 0, R * 0.03, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function render(timestamp) {
+      ctx.clearRect(0, 0, SIZE, SIZE)
+
+      // The animation frame timestamp is a number, not a Date. Build the
+      // current time ourselves so the hands receive a real Date object.
+      const now = new Date()
+
+      // Backdrop gears peeking out around the dial
+      drawGear(CX - R * 1.12, CY - R * 0.18, R * 0.55, 16, R * 0.1, now / 900, COLORS.bronze, COLORS.steelDark)
+      drawGear(CX + R * 1.12, CY + R * 0.16, R * 0.48, 14, R * 0.09, -now / 1300, COLORS.steelDark, COLORS.brassDark)
+      drawGear(CX - R * 0.15, CY + R * 1.18, R * 0.38, 12, R * 0.08, now / 1500, COLORS.brass, COLORS.steelDark)
+      drawGear(CX + R * 0.28, CY - R * 1.2, R * 0.28, 10, R * 0.07, -now / 1100, COLORS.steel, COLORS.ink)
+
+      drawClockFace()
+      drawHands(now)
+
+      // Fixed mounting studs
+      for (const [sx, sy] of [
+        [CX, CY - R * 1.0],
+        [CX, CY + R * 1.0],
+        [CX - R * 1.0, CY],
+        [CX + R * 1.0, CY],
+      ]) {
+        ctx.beginPath()
+        ctx.arc(sx, sy, R * 0.045, 0, Math.PI * 2)
+        ctx.fillStyle = COLORS.bronze
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(sx, sy, R * 0.018, 0, Math.PI * 2)
+        ctx.fillStyle = COLORS.ink
+        ctx.fill()
+      }
+
+      requestAnimationFrame(render)
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+
+</html>
