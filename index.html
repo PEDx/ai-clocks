@@ -40,6 +40,136 @@
       padding: 48px 0 180px;
     }
 
+    .directory-toggle {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 12px;
+      z-index: 31;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--text-secondary);
+      background: var(--surface);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      transform: translateY(-50%);
+      cursor: pointer;
+    }
+
+    .directory-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .directory-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 29;
+      background: rgba(26, 22, 18, 0.24);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    .model-directory {
+      position: fixed;
+      top: 50%;
+      left: max(16px, calc((100vw - 1420px) / 2 - 224px));
+      z-index: 30;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      width: 196px;
+      height: min(72vh, 680px);
+      max-height: calc(100vh - 32px);
+      padding: 16px 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+      transform: translateY(-50%);
+      overflow: hidden;
+    }
+
+    .directory-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 8px 10px;
+    }
+
+    .directory-title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+    }
+
+    .directory-count {
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .directory-close {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      margin: -5px -2px -5px 0;
+      border: 0;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .directory-close:hover {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .directory-list {
+      display: grid;
+      gap: 2px;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      list-style: none;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) transparent;
+    }
+
+    .directory-link {
+      display: block;
+      overflow: hidden;
+      padding: 8px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      line-height: 1.25;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: color 150ms ease, background 150ms ease;
+    }
+
+    .directory-link:hover {
+      color: var(--text);
+      background: var(--accent-soft);
+    }
+
+    .directory-link.is-active {
+      color: var(--accent);
+      font-weight: 600;
+      background: var(--accent-soft);
+    }
+
     .hero {
       margin-bottom: 32px;
       padding: 28px 32px;
@@ -366,6 +496,50 @@
     }
 
     @media (max-width: 720px) {
+      .directory-toggle {
+        display: inline-flex;
+      }
+
+      .directory-backdrop {
+        display: block;
+      }
+
+      .model-directory {
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(82vw, 320px);
+        height: 100%;
+        max-height: none;
+        padding: 22px 14px 18px;
+        border-width: 0 1px 0 0;
+        border-radius: 0 18px 18px 0;
+        box-shadow: 8px 0 28px rgba(0, 0, 0, 0.12);
+        transform: translateX(-102%);
+        transition: transform 220ms ease;
+      }
+
+      .directory-heading {
+        padding: 0 8px 14px;
+      }
+
+      .directory-close {
+        display: inline-flex;
+      }
+
+      body.directory-open .model-directory {
+        transform: translateX(0);
+      }
+
+      body.directory-open .directory-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      body.directory-open {
+        overflow: hidden;
+      }
+
       .grid {
         grid-template-columns: 1fr;
       }
@@ -420,6 +594,25 @@
 </head>
 
 <body>
+  <button class="directory-toggle" id="directoryToggle" type="button" aria-label="打开模型目录" aria-controls="modelDirectory" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+      <path d="M5 6h14M5 12h14M5 18h14"></path>
+    </svg>
+  </button>
+  <div class="directory-backdrop" id="directoryBackdrop"></div>
+  <aside class="model-directory" id="modelDirectory" aria-label="模型快速导航">
+    <div class="directory-heading">
+      <h2 class="directory-title">模型目录</h2>
+      <span class="directory-count" id="directoryCount">--</span>
+      <button class="directory-close" id="directoryClose" type="button" aria-label="关闭模型目录">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
+    </div>
+    <ul class="directory-list" id="modelDirectoryList"></ul>
+  </aside>
+
   <main class="page">
     <section class="hero">
       <div class="timebar">
@@ -493,6 +686,11 @@
 
   <script>
     const models = [
+      {
+        name: "GLM 5.3",
+        path: "./models/glm-5.3/index.html",
+        stats: { lines: 214, codeLines: 180, blankLines: 25, commentLines: 9, functions: 12, scripts: 1, styles: 1, bytes: 6336 }
+      },
       {
         name: "DeepSeek V4 Pro 0813",
         path: "./models/deepseek-v4-pro-0813/index.html",
@@ -639,6 +837,7 @@
     models.forEach((model) => {
       const card = document.createElement("article")
       card.className = "card"
+      card.id = `model-${models.indexOf(model)}`
       const stats = model.stats || {}
 
       card.innerHTML = `
@@ -696,6 +895,55 @@
 
       grid.appendChild(card)
     });
+
+    const directoryList = document.getElementById("modelDirectoryList")
+    const directoryCount = document.getElementById("directoryCount")
+    const directoryToggle = document.getElementById("directoryToggle")
+    const directoryClose = document.getElementById("directoryClose")
+    const directoryBackdrop = document.getElementById("directoryBackdrop")
+
+    directoryCount.textContent = `${models.length} 个模型`
+    models.forEach((model, index) => {
+      const item = document.createElement("li")
+      const link = document.createElement("a")
+      link.className = "directory-link"
+      link.href = `#model-${index}`
+      link.textContent = model.name
+      link.dataset.target = `model-${index}`
+      item.appendChild(link)
+      directoryList.appendChild(item)
+    })
+
+    function setDirectoryOpen(isOpen) {
+      document.body.classList.toggle("directory-open", isOpen)
+      directoryToggle.setAttribute("aria-expanded", String(isOpen))
+    }
+
+    directoryToggle.addEventListener("click", () => setDirectoryOpen(true))
+    directoryClose.addEventListener("click", () => setDirectoryOpen(false))
+    directoryBackdrop.addEventListener("click", () => setDirectoryOpen(false))
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setDirectoryOpen(false)
+    })
+    directoryList.addEventListener("click", (event) => {
+      const link = event.target.closest(".directory-link")
+      if (!link) return
+      setDirectoryOpen(false)
+      directoryList.querySelectorAll(".directory-link").forEach((item) => item.classList.remove("is-active"))
+      link.classList.add("is-active")
+    })
+
+    const directoryLinks = [...directoryList.querySelectorAll(".directory-link")]
+    const cardObserver = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (!visible) return
+      directoryLinks.forEach((link) => link.classList.toggle("is-active", link.dataset.target === visible.target.id))
+    }, { rootMargin: "-18% 0px -62% 0px", threshold: [0, 0.25, 0.6, 1] })
+
+    document.querySelectorAll(".card").forEach((card) => cardObserver.observe(card))
+    directoryLinks[0]?.classList.add("is-active")
   </script>
 </body>
 
