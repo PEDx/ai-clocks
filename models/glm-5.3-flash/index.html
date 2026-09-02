@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GLM 5.3 Flash · Mechanical Clock</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 30%, #262a30 0%, #101114 72%);
+      font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
+    }
+
+    .clock-wrap {
+      width: min(90vmin, 660px);
+      aspect-ratio: 1 / 1;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="clock-wrap">
+    <canvas id="clock"></canvas>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("clock")
+    const ctx = canvas.getContext("2d")
+    const TAU = Math.PI * 2
+
+    // 高分屏适配:按 devicePixelRatio 放大画布,绘制时统一按逻辑尺寸换算
+    function resize() {
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = Math.round(rect.width * dpr)
+      canvas.height = Math.round(rect.height * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    window.addEventListener("resize", resize)
+    resize()
+
+    // 回弹缓动:秒针 / 擒纵轮步进时先冲过头再落回,模拟杠杆擒纵的释放
+    function recoilEase(p) {
+      const c1 = 0.9
+      const c3 = c1 + 1
+      return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2)
+    }
+
+    // ---------- 表壳与表盘 ----------
+
+    function drawBezel(cx, cy, r) {
+      // 外壳投影
+      ctx.save()
+      ctx.shadowColor = "rgba(0,0,0,0.55)"
+      ctx.shadowBlur = r * 0.09
+      ctx.shadowOffsetY = r * 0.03
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, TAU)
+      ctx.fillStyle = "#3b3e44"
+      ctx.fill()
+      ctx.restore()
+
+      // 拉丝钢圈:四段明暗交替模拟金属反光
+      const ring = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r)
+      ring.addColorStop(0, "#585d66")
+      ring.addColorStop(0.22, "#cfd4dc")
+      ring.addColorStop(0.45, "#787e88")
+      ring.addColorStop(0.62, "#e2e6ec")
+      ring.addColorStop(0.8, "#6a7079")
+      ring.addColorStop(1, "#4d525a")
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, TAU)
+      ctx.fillStyle = ring
+      ctx.fill()
+
+      // 表圈滚花:一圈细密虚线
+      ctx.setLineDash([r * 0.012, r * 0.014])
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.955, 0, TAU)
+      ctx.lineWidth = r * 0.03
+      ctx.strokeStyle = "rgba(30,32,36,0.5)"
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // 内圈凹陷阴影
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.9, 0, TAU)
+      ctx.lineWidth = r * 0.035
+      ctx.strokeStyle = "rgba(0,0,0,0.35)"
+      ctx.stroke()
+    }
+
+    function drawDial(cx, cy, r) {
+      const dial = ctx.createRadialGradient(cx, cy - r * 0.25, r * 0.1, cx, cy, r * 0.92)
+      dial.addColorStop(0, "#faf6ec")
+      dial.addColorStop(0.7, "#f1ebdd")
+      dial.addColorStop(1, "#ddd4c2")
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.9, 0, TAU)
+      ctx.fillStyle = dial
+      ctx.fill()
+
+      // 盘面暗角
+      const vignette = ctx.createRadialGradient(cx, cy, r * 0.45, cx, cy, r * 0.9)
+      vignette.addColorStop(0, "rgba(0,0,0,0)")
+      vignette.addColorStop(1, "rgba(60,45,25,0.14)")
+      ctx.fillStyle = vignette
+      ctx.fill()
+    }
+
+    function drawTrack(cx, cy, r) {
+      // 分钟刻度 + 小时条形时标
+      for (let i = 0; i < 60; i += 1) {
+        const angle = (i / 60) * TAU - Math.PI / 2
+        const isHour = i % 5 === 0
+        const rOuter = r * 0.815
+        const rInner = rOuter - (isHour ? r * 0.1 : r * 0.04)
+
+        ctx.beginPath()
+        ctx.moveTo(cx + Math.cos(angle) * rInner, cy + Math.sin(angle) * rInner)
+        ctx.lineTo(cx + Math.cos(angle) * rOuter, cy + Math.sin(angle) * rOuter)
+        ctx.lineWidth = isHour ? r * 0.016 : r * 0.005
+        ctx.lineCap = "butt"
+        ctx.strokeStyle = isHour ? "#33302a" : "#9a917f"
+        ctx.stroke()
+      }
+
+      // 轨道外沿细圈
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.83, 0, TAU)
+      ctx.lineWidth = r * 0.004
+      ctx.strokeStyle = "rgba(90,80,60,0.5)"
+      ctx.stroke()
+    }
+
+    function drawNumerals(cx, cy, r) {
+      // 经典盘面用 IIII 代替 IV;6 点位让位给镂空机芯窗
+      const numerals = ["XII", "I", "II", "III", "IIII", "V", null, "VII", "VIII", "IX", "X", "XI"]
+      ctx.font = `600 ${Math.round(r * 0.105)}px Georgia, "Times New Roman", serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillStyle = "#2c2922"
+
+      numerals.forEach((text, i) => {
+        if (!text) return
+        const angle = (i / 12) * TAU - Math.PI / 2
+        const dist = r * 0.625
+        ctx.fillText(text, cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist)
+      })
+    }
+
+    function drawTexts(cx, cy, r) {
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      if ("letterSpacing" in ctx) ctx.letterSpacing = `${(r * 0.012).toFixed(2)}px`
+
+      ctx.font = `600 ${Math.round(r * 0.046)}px -apple-system, sans-serif`
+      ctx.fillStyle = "#6d6552"
+      ctx.fillText("GLM 5.3 FLASH", cx, cy - r * 0.31)
+
+      ctx.font = `500 ${Math.round(r * 0.028)}px -apple-system, sans-serif`
+      ctx.fillStyle = "#9a917f"
+      ctx.fillText("OPEN HEART · 21 JEWELS", cx, cy + r * 0.13)
+
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px"
+    }
+
+    // ---------- 镂空机芯窗(6 点位) ----------
+
+    function gearPath(r, teeth) {
+      const step = TAU / teeth
+      const root = r * 0.78
+      ctx.beginPath()
+      for (let i = 0; i < teeth; i += 1) {
+        const a = i * step
+        ctx.arc(0, 0, root, a, a + step * 0.3)
+        ctx.lineTo(Math.cos(a + step * 0.42) * r, Math.sin(a + step * 0.42) * r)
+        ctx.arc(0, 0, r, a + step * 0.42, a + step * 0.62)
+        ctx.lineTo(Math.cos(a + step * 0.74) * root, Math.sin(a + step * 0.74) * root)
+      }
+      ctx.closePath()
+    }
+
+    function drawGear(x, y, r, teeth, rot, tone) {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(rot)
+
+      gearPath(r, teeth)
+      const metal = ctx.createLinearGradient(-r, -r, r, r)
+      metal.addColorStop(0, tone[0])
+      metal.addColorStop(0.5, tone[1])
+      metal.addColorStop(1, tone[2])
+      ctx.fillStyle = metal
+      ctx.fill()
+      ctx.lineWidth = r * 0.03
+      ctx.strokeStyle = "rgba(0,0,0,0.45)"
+      ctx.stroke()
+
+      // 辐条镂空:先画辐条再挖暗孔,营造夹板上的齿轮观感
+      ctx.beginPath()
+      ctx.arc(0, 0, r * 0.62, 0, TAU)
+      ctx.fillStyle = "#15110c"
+      ctx.fill()
+      ctx.lineWidth = r * 0.13
+      ctx.lineCap = "round"
+      ctx.strokeStyle = tone[1]
+      for (let i = 0; i < 4; i += 1) {
+        const a = (i / 4) * TAU
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(a) * r * 0.1, Math.sin(a) * r * 0.1)
+        ctx.lineTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6)
+        ctx.stroke()
+      }
+
+      // 轴心:红宝石轴承
+      ctx.beginPath()
+      ctx.arc(0, 0, r * 0.12, 0, TAU)
+      ctx.fillStyle = "#a8322c"
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(-r * 0.03, -r * 0.03, r * 0.045, 0, TAU)
+      ctx.fillStyle = "rgba(255,190,180,0.8)"
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawEscapeWheel(x, y, r, rot) {
+      // 擒纵轮:锯齿状尖齿,步进释放
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(rot)
+      const teeth = 15
+      const step = TAU / teeth
+      ctx.beginPath()
+      for (let i = 0; i < teeth; i += 1) {
+        const a = i * step
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+        ctx.lineTo(Math.cos(a + step * 0.5) * r * 0.66, Math.sin(a + step * 0.5) * r * 0.66)
+        ctx.arc(0, 0, r * 0.66, a + step * 0.5, a + step)
+      }
+      ctx.closePath()
+      const metal = ctx.createLinearGradient(-r, -r, r, r)
+      metal.addColorStop(0, "#d8b46a")
+      metal.addColorStop(0.5, "#9a7a3e")
+      metal.addColorStop(1, "#5f4a24")
+      ctx.fillStyle = metal
+      ctx.fill()
+      ctx.lineWidth = r * 0.025
+      ctx.strokeStyle = "rgba(0,0,0,0.5)"
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.arc(0, 0, r * 0.16, 0, TAU)
+      ctx.fillStyle = "#a8322c"
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawHairspring(x, y, r, phase) {
+      // 游丝:阿基米德螺线,随摆轮收放呼吸
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(phase * 0.55)
+      ctx.beginPath()
+      const turns = 4.5
+      const k = (r * (1 + 0.1 * Math.sin(phase * 2))) / (turns * TAU)
+      for (let theta = 0; theta <= turns * TAU; theta += 0.12) {
+        const rr = k * theta
+        const px = Math.cos(theta) * rr
+        const py = Math.sin(theta) * rr
+        if (theta === 0) ctx.moveTo(px, py)
+        else ctx.lineTo(px, py)
+      }
+      ctx.lineWidth = Math.max(r * 0.02, 0.6)
+      ctx.strokeStyle = "#3d4a63"
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    function drawBalance(x, y, r, angle) {
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(angle)
+
+      // 摆轮外缘
+      const rim = ctx.createLinearGradient(-r, -r, r, r)
+      rim.addColorStop(0, "#e3e7ee")
+      rim.addColorStop(0.5, "#8b919c")
+      rim.addColorStop(1, "#4e535c")
+      ctx.beginPath()
+      ctx.arc(0, 0, r, 0, TAU)
+      ctx.lineWidth = r * 0.17
+      ctx.strokeStyle = rim
+      ctx.stroke()
+
+      // 边缘配重螺丝
+      for (let i = 0; i < 6; i += 1) {
+        const a = (i / 6) * TAU + TAU / 12
+        ctx.beginPath()
+        ctx.arc(Math.cos(a) * r, Math.sin(a) * r, r * 0.07, 0, TAU)
+        ctx.fillStyle = "#c9873c"
+        ctx.fill()
+      }
+
+      // 三辐游丝臂
+      ctx.lineWidth = r * 0.1
+      ctx.lineCap = "round"
+      ctx.strokeStyle = "#aab0ba"
+      for (let i = 0; i < 3; i += 1) {
+        ctx.save()
+        ctx.rotate((i / 3) * TAU)
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.12, 0)
+        ctx.lineTo(r * 0.88, 0)
+        ctx.stroke()
+        ctx.restore()
+      }
+
+      ctx.beginPath()
+      ctx.arc(0, 0, r * 0.14, 0, TAU)
+      ctx.fillStyle = "#d7dbe2"
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawMovement(cx, cy, r, t) {
+      const A = r * 0.23 // 机芯窗半径
+      const ax = cx
+      const ay = cy + r * 0.44
+
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(ax, ay, A, 0, TAU)
+      ctx.clip()
+
+      // 腔体底色:深色夹板
+      const cavity = ctx.createRadialGradient(ax, ay - A * 0.4, A * 0.1, ax, ay, A * 1.2)
+      cavity.addColorStop(0, "#2a231a")
+      cavity.addColorStop(1, "#120e09")
+      ctx.fillStyle = cavity
+      ctx.fillRect(ax - A, ay - A, A * 2, A * 2)
+
+      // 慢车大钢轮:1 圈 / 20 秒,倒转
+      drawGear(ax, ay + A * 0.55, A * 0.58, 36, -(t / 20) * TAU, ["#b9bfc9", "#868c96", "#565b64"])
+
+      // 擒纵轮:每半秒跳一齿
+      const beat = t / 0.5
+      const frac = recoilEase(Math.min(beat % 1, 1))
+      drawEscapeWheel(ax, ay + A * 0.32, A * 0.4, -(Math.floor(beat) + frac) * (TAU / 15))
+
+      // 摆轮 + 游丝:1.4Hz 往复
+      const balanceAngle = 0.72 * Math.sin(t * TAU * 1.4)
+      drawHairspring(ax, ay - A * 0.34, A * 0.34, t * TAU * 1.4)
+      drawBalance(ax, ay - A * 0.34, A * 0.5, balanceAngle)
+
+      ctx.restore()
+
+      // 机芯窗金属内圈
+      ctx.beginPath()
+      ctx.arc(ax, ay, A, 0, TAU)
+      ctx.lineWidth = A * 0.14
+      const rim = ctx.createLinearGradient(ax - A, ay - A, ax + A, ay + A)
+      rim.addColorStop(0, "#d9dde4")
+      rim.addColorStop(0.5, "#7c828c")
+      rim.addColorStop(1, "#43474e")
+      ctx.strokeStyle = rim
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(ax, ay, A * 1.07, 0, TAU)
+      ctx.lineWidth = A * 0.04
+      ctx.strokeStyle = "rgba(0,0,0,0.4)"
+      ctx.stroke()
+    }
+
+    // ---------- 指针 ----------
+
+    function drawDauphineHand(cx, cy, angle, len, halfW, tail, grad) {
+      // 菱形剑形针:先投影再画立体切面
+      const shape = () => {
+        ctx.beginPath()
+        ctx.moveTo(0, tail)
+        ctx.lineTo(-halfW, -len * 0.3)
+        ctx.lineTo(0, -len)
+        ctx.lineTo(halfW, -len * 0.3)
+        ctx.closePath()
+      }
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle)
+
+      ctx.save()
+      ctx.translate(len * 0.012, len * 0.02)
+      shape()
+      ctx.fillStyle = "rgba(0,0,0,0.22)"
+      ctx.fill()
+      ctx.restore()
+
+      shape()
+      const facet = ctx.createLinearGradient(-halfW, 0, halfW, 0)
+      facet.addColorStop(0, grad[0])
+      facet.addColorStop(0.4, grad[1])
+      facet.addColorStop(1, grad[2])
+      ctx.fillStyle = facet
+      ctx.fill()
+      ctx.restore()
+    }
+
+    function drawSecondsHand(cx, cy, angle, r) {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(angle)
+
+      ctx.save()
+      ctx.translate(r * 0.005, r * 0.008)
+      ctx.beginPath()
+      ctx.moveTo(0, r * 0.2)
+      ctx.lineTo(0, -r * 0.82)
+      ctx.lineWidth = r * 0.008
+      ctx.lineCap = "round"
+      ctx.strokeStyle = "rgba(0,0,0,0.2)"
+      ctx.stroke()
+      ctx.restore()
+
+      ctx.beginPath()
+      ctx.moveTo(0, r * 0.2)
+      ctx.lineTo(0, -r * 0.82)
+      ctx.lineWidth = r * 0.008
+      ctx.lineCap = "round"
+      ctx.strokeStyle = "#2b5c9e"
+      ctx.stroke()
+
+      // 尾部配重环
+      ctx.beginPath()
+      ctx.arc(0, r * 0.13, r * 0.032, 0, TAU)
+      ctx.lineWidth = r * 0.011
+      ctx.strokeStyle = "#2b5c9e"
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    function drawHands(cx, cy, r, now) {
+      const ms = now.getMilliseconds()
+      const s = now.getSeconds()
+      const m = now.getMinutes() + (s + ms / 1000) / 60
+      const h = (now.getHours() % 12) + m / 60
+
+      const hourAngle = (h / 12) * TAU
+      const minuteAngle = (m / 60) * TAU
+      const secAngle = ((s + recoilEase(Math.min(ms / 280, 1))) / 60) * TAU
+
+      const blued = ["#8aa3cf", "#2e5390", "#101f3d"]
+      drawDauphineHand(cx, cy, hourAngle, r * 0.5, r * 0.042, r * 0.1, blued)
+      drawDauphineHand(cx, cy, minuteAngle, r * 0.74, r * 0.034, r * 0.12, blued)
+      drawSecondsHand(cx, cy, secAngle, r)
+    }
+
+    function drawCenterCap(cx, cy, r) {
+      const cap = ctx.createRadialGradient(cx - r * 0.015, cy - r * 0.015, r * 0.005, cx, cy, r * 0.05)
+      cap.addColorStop(0, "#e8ebf0")
+      cap.addColorStop(0.5, "#8b919c")
+      cap.addColorStop(1, "#33373d")
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.05, 0, TAU)
+      ctx.fillStyle = cap
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.014, 0, TAU)
+      ctx.fillStyle = "#2b5c9e"
+      ctx.fill()
+    }
+
+    function drawGlass(cx, cy, r) {
+      // 表镜左上主反光 + 右下余光
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.84, -Math.PI * 0.82, -Math.PI * 0.48)
+      ctx.lineWidth = r * 0.07
+      ctx.lineCap = "round"
+      ctx.strokeStyle = "rgba(255,255,255,0.13)"
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.arc(cx, cy, r * 0.84, Math.PI * 0.18, Math.PI * 0.42)
+      ctx.lineWidth = r * 0.045
+      ctx.strokeStyle = "rgba(255,255,255,0.05)"
+      ctx.stroke()
+    }
+
+    function render(now) {
+      const rect = canvas.getBoundingClientRect()
+      const cx = rect.width / 2
+      const cy = rect.height / 2
+      const r = Math.min(rect.width, rect.height) / 2 - 4
+      const t = now.getTime() / 1000
+
+      ctx.clearRect(0, 0, rect.width, rect.height)
+      drawBezel(cx, cy, r)
+      drawDial(cx, cy, r)
+      drawTrack(cx, cy, r)
+      drawMovement(cx, cy, r, t)
+      drawNumerals(cx, cy, r)
+      drawTexts(cx, cy, r)
+      drawHands(cx, cy, r, now)
+      drawCenterCap(cx, cy, r)
+      drawGlass(cx, cy, r)
+    }
+
+    function tick() {
+      render(new Date())
+      requestAnimationFrame(tick)
+    }
+    tick()
+  </script>
+</body>
+
+</html>
