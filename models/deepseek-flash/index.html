@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skeleton Clock · Canvas</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 42%, #17120d, #060504 72%);
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    canvas {
+      display: block;
+      width: min(100vw, 100vh, 760px);
+      height: min(100vw, 100vh, 760px);
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="stage"></canvas>
+
+  <script>
+    "use strict";
+
+    /* ==================================================================
+     *  A skeleton (open-worked) mechanical clock, drawn entirely with the
+     *  Canvas 2D API.  Every turning part is driven by the real clock
+     *  time: the escape wheel escapes one tooth per second, the pallet
+     *  fork rocks with the pendulum, and the wheel train meshes exactly.
+     * ================================================================== */
+
+    const SIZE = 640;
+    const CX = SIZE / 2;
+    const CY = SIZE / 2;
+    const TAU = Math.PI * 2;
+    const D2R = Math.PI / 180;
+
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d");
+
+    /* ------------------------------------------------------------------
+     * Layout of the wheel train.
+     *
+     * The wheels are laid out on a circular arc inside the dial so that
+     * the distance between two neighbours is exactly the sum of their
+     * pitch radii ( module * (t1 + t2) / 2 ), which is what makes the
+     * teeth mesh instead of overlap.  The escape wheel sits on the arc
+     * at 270 deg - straight up - where the escapement lives.
+     * ---------------------------------------------------------------- */
+
+    const MODULE = 1.4;
+    const TRAIN_R = 106;
+    const ESCAPE_DEG = 285;
+    const TEETH = [30, 36, 48, 64, 80]; // escape -> fourth -> third -> centre -> great
+
+    const PEN = {
+      pivot: { x: CX, y: 128 },
+      length: 300,
+      amplitude: 0.115,
+      bob: 34,
+      grip: 155          // height at which the crutch forks the rod
+    };
+
+    const FORK = {
+      palletRadius: 21,  // measured from the escape wheel centre
+      palletSpread: 35 * D2R,
+      drop: 36           // pallet arbor sits this far above the escape wheel
+    };
+
+    const gears = (function buildTrain() {
+      const list = [];
+      let deg = ESCAPE_DEG;
+
+      TEETH.forEach((teeth, i) => {
+        if (i > 0) {
+          const pitch = (MODULE * (teeth + TEETH[i - 1])) / 2;
+          deg -= (2 * Math.asin(pitch / (2 * TRAIN_R))) / D2R;
+        }
+        const rp = (MODULE * teeth) / 2;
+        list.push({
+          teeth: teeth,
+          rp: rp,
+          tip: rp + MODULE * 1.15,
+          root: rp - MODULE * 1.85,
+          rim: rp * 0.76,
+          hub: Math.max(6, rp * 0.2),
+          spokes: 5,
+          x: CX + TRAIN_R * Math.cos(deg * D2R),
+          y: CY + TRAIN_R * Math.sin(deg * D2R),
+          angle: 0,
+          sprite: null
+        });
+      });
+      return list;
+    })();
+
+    const escapeWheel = gears[0];
+
+    FORK.pivot = { x: escapeWheel.x, y: escapeWheel.y - FORK.drop };
+
+    /* Pallet stones, expressed in the pallet fork's own frame. */
+    const pallets = [-1, 1].map((side) => {
+      const a = -Math.PI / 2 + side * FORK.palletSpread;
+      return {
+        x: escapeWheel.x + FORK.palletRadius * Math.cos(a) - FORK.pivot.x,
+        y: escapeWheel.y + FORK.palletRadius * Math.sin(a) - FORK.pivot.y
+      };
+    });
+
+    /* The crutch reaches across to the pendulum rod and forks it.  A small
+     * rotation of the fork moves the crutch tip by -cy * angle horizontally,
+     * while the rod at that height moves by (grip - pivot.y) * angle, so the
+     * fork must turn by this gain to stay locked to the pendulum. */
+    const crutchTip = { x: CX - FORK.pivot.x, y: PEN.grip - FORK.pivot.y };
+    FORK.gain = -(PEN.grip - PEN.pivot.y) / crutchTip.y;
+
+    /* ------------------------------------------------------------------
+     * Drawing helpers
+     * ---------------------------------------------------------------- */
+
+    /* A tapered bar between two points - the building block for the
+     * pallet fork, its crutch and the pendulum rod. */
+    function bar(g, x0, y0, x1, y1, w0, w1, fill, edge) {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      g.beginPath();
+      g.moveTo(x0 + nx * w0, y0 + ny * w0);
+      g.lineTo(x1 + nx * w1, y1 + ny * w1);
+      g.lineTo(x1 - nx * w1, y1 - ny * w1);
+      g.lineTo(x0 - nx * w0, y0 - ny * w0);
+      g.closePath();
+      g.fillStyle = fill;
+      g.fill();
+      g.lineWidth = 0.9;
+      g.strokeStyle = edge;
+      g.stroke();
+    }
+
+    function traceTeeth(g, gear) {
+      const step = TAU / gear.teeth;
+      const tipHalf = step * 0.23;
+      const rootHalf = step * 0.31;
+
+      g.beginPath();
+      for (let i = 0; i < gear.teeth; i += 1) {
+        const a = i * step;
+        g.lineTo(Math.cos(a - rootHalf) * gear.root, Math.sin(a - rootHalf) * gear.root);
+        g.lineTo(Math.cos(a - tipHalf) * gear.tip, Math.sin(a - tipHalf) * gear.tip);
+        g.lineTo(Math.cos(a + tipHalf) * gear.tip, Math.sin(a + tipHalf) * gear.tip);
+        g.lineTo(Math.cos(a + rootHalf) * gear.root, Math.sin(a + rootHalf) * gear.root);
+      }
+      g.closePath();
+    }
+
+    function brassFace(g, r) {
+      // A radial gradient keeps the shading correct while the wheel turns.
+      const grad = g.createRadialGradient(-r * 0.3, -r * 0.34, r * 0.04, 0, 0, r * 1.08);
+      grad.addColorStop(0, "#fbeec8");
+      grad.addColorStop(0.34, "#e3c179");
+      grad.addColorStop(0.68, "#bb8f42");
+      grad.addColorStop(0.9, "#8a6428");
+      grad.addColorStop(1, "#5d4015");
+      return grad;
+    }
+
+    function makeGearSprite(gear, ratio) {
+      const R = gear.tip + 4;
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = Math.ceil(R * 2 * ratio);
+
+      const g = cv.getContext("2d");
+      g.setTransform(ratio, 0, 0, ratio, 0, 0);
+      g.translate(R, R);
+
+      const face = brassFace(g, R);
+      const edge = "rgba(30,17,4,0.85)";
+
+      // Rim: the toothed outline with the inner circle punched out.
+      traceTeeth(g, gear);
+      g.moveTo(gear.rim, 0);
+      g.arc(0, 0, gear.rim, 0, TAU);
+      g.fillStyle = face;
+      g.fill("evenodd");
+      g.lineWidth = 1;
+      g.strokeStyle = edge;
+      g.stroke();
+
+      // Crossings (spokes).
+      const w0 = Math.max(2.2, gear.hub * 0.62);
+      const w1 = Math.max(1.6, gear.rim * 0.13);
+      const r0 = gear.hub * 0.5;
+      const r1 = gear.rim + 0.7;
+
+      for (let i = 0; i < gear.spokes; i += 1) {
+        const a = (i / gear.spokes) * TAU + Math.PI / gear.spokes;
+        const ux = Math.cos(a);
+        const uy = Math.sin(a);
+        const px = -uy;
+        const py = ux;
+
+        g.beginPath();
+        g.moveTo(ux * r0 + px * w0, uy * r0 + py * w0);
+        g.lineTo(ux * r1 + px * w1, uy * r1 + py * w1);
+        g.lineTo(ux * r1 - px * w1, uy * r1 - py * w1);
+        g.lineTo(ux * r0 - px * w0, uy * r0 - py * w0);
+        g.closePath();
+        g.fillStyle = face;
+        g.fill();
+        g.lineWidth = 0.9;
+        g.strokeStyle = "rgba(30,17,4,0.7)";
+        g.stroke();
+      }
+
+      // Hub.
+      g.beginPath();
+      g.arc(0, 0, gear.hub, 0, TAU);
+      g.fillStyle = face;
+      g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = edge;
+      g.stroke();
+
+      // Ruby jewel in the bearing.
+      const jr = Math.max(2.4, gear.hub * 0.42);
+      const jewel = g.createRadialGradient(-jr * 0.4, -jr * 0.4, jr * 0.1, 0, 0, jr * 1.25);
+      jewel.addColorStop(0, "#ff9aad");
+      jewel.addColorStop(0.45, "#c8203f");
+      jewel.addColorStop(1, "#570a1a");
+      g.beginPath();
+      g.arc(0, 0, jr, 0, TAU);
+      g.fillStyle = jewel;
+      g.fill();
+
+      g.beginPath();
+      g.arc(-jr * 0.32, -jr * 0.36, jr * 0.26, 0, TAU);
+      g.fillStyle = "rgba(255,255,255,0.75)";
+      g.fill();
+
+      gear.sprite = cv;
+      gear.spriteHalf = R;
+    }
+
+    /* ------------------------------------------------------------------
+     * Static dial: case, chapter ring, numerals, screws, engraving.
+     * Rendered once into an offscreen layer.
+     * ---------------------------------------------------------------- */
+
+    const ROMAN = ["I", "II", "III", "IIII", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+    const SCREWS = [155, 318, 62, 120];
+
+    function ringPath(g, r0, r1) {
+      g.beginPath();
+      g.arc(0, 0, r1, 0, TAU);
+      g.moveTo(r0, 0);
+      g.arc(0, 0, r0, 0, TAU);
+    }
+
+    function drawScrew(g, x, y, r, tilt) {
+      const grad = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+      grad.addColorStop(0, "#f6e2ae");
+      grad.addColorStop(0.6, "#bb9046");
+      grad.addColorStop(1, "#5f421a");
+
+      g.beginPath();
+      g.arc(x, y, r, 0, TAU);
+      g.fillStyle = grad;
+      g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = "rgba(20,11,2,0.8)";
+      g.stroke();
+
+      g.save();
+      g.translate(x, y);
+      g.rotate(tilt);
+      g.beginPath();
+      g.moveTo(-r * 0.62, 0);
+      g.lineTo(r * 0.62, 0);
+      g.lineWidth = 1.5;
+      g.strokeStyle = "rgba(26,15,4,0.85)";
+      g.stroke();
+      g.restore();
+    }
+
+    function buildStatic(ratio) {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = Math.round(SIZE * ratio);
+
+      const g = cv.getContext("2d");
+      g.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      // Backdrop.
+      const back = g.createRadialGradient(CX, CY * 0.82, 30, CX, CY, SIZE * 0.8);
+      back.addColorStop(0, "#261b12");
+      back.addColorStop(0.5, "#140e09");
+      back.addColorStop(1, "#060403");
+      g.fillStyle = back;
+      g.fillRect(0, 0, SIZE, SIZE);
+
+      // ---- outer brass case
+      g.save();
+      g.translate(CX, CY);
+      ringPath(g, 246, 262);
+      const caseGrad = g.createLinearGradient(-200, -200, 200, 220);
+      caseGrad.addColorStop(0, "#f3dda9");
+      caseGrad.addColorStop(0.24, "#c9a153");
+      caseGrad.addColorStop(0.52, "#f0d8a2");
+      caseGrad.addColorStop(0.78, "#9c7430");
+      caseGrad.addColorStop(1, "#5f4218");
+      g.fillStyle = caseGrad;
+      g.fill("evenodd");
+      g.lineWidth = 1.2;
+      g.strokeStyle = "rgba(26,15,4,0.75)";
+      g.stroke();
+
+      // Specular sweep on the bezel.
+      g.beginPath();
+      g.arc(0, 0, 254, -145 * D2R, -40 * D2R);
+      g.lineWidth = 9;
+      g.strokeStyle = "rgba(255,246,220,0.22)";
+      g.stroke();
+
+      // ---- chapter ring
+      ringPath(g, 200, 246);
+      const band = g.createRadialGradient(0, 0, 196, 0, 0, 250);
+      band.addColorStop(0, "#100b06");
+      band.addColorStop(0.55, "#1c1409");
+      band.addColorStop(1, "#0d0905");
+      g.fillStyle = band;
+      g.fill("evenodd");
+      g.restore();
+
+      // Minute track.
+      g.save();
+      g.translate(CX, CY);
+      for (let i = 0; i < 60; i += 1) {
+        const a = i * 6 * D2R - Math.PI / 2;
+        const major = i % 5 === 0;
+        const r0 = major ? 228 : 234;
+        const r1 = 242;
+        g.beginPath();
+        g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+        g.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+        g.lineWidth = major ? 2.6 : 1.1;
+        g.strokeStyle = major ? "rgba(238,214,166,0.92)" : "rgba(206,178,132,0.5)";
+        g.stroke();
+      }
+
+      // Brass rim lines.
+      g.lineWidth = 1.6;
+      g.strokeStyle = "rgba(233,201,140,0.55)";
+      g.beginPath();
+      g.arc(0, 0, 243.5, 0, TAU);
+      g.stroke();
+      g.beginPath();
+      g.arc(0, 0, 201.5, 0, TAU);
+      g.stroke();
+      g.restore();
+
+      // Numerals.
+      g.save();
+      g.translate(CX, CY);
+      g.fillStyle = "#f2e7d2";
+      g.font = '25px Georgia, "Times New Roman", serif';
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      for (let i = 0; i < 12; i += 1) {
+        // ROMAN[0] is "I" and belongs at one o'clock, not at the top.
+        const a = (i + 1) * 30 * D2R - Math.PI / 2;
+        const r = 214;
+        g.fillText(ROMAN[i], Math.cos(a) * r, Math.sin(a) * r + 1);
+      }
+      g.restore();
+
+      // ---- movement plate
+      g.save();
+      g.translate(CX, CY);
+      g.beginPath();
+      g.arc(0, 0, 200, 0, TAU);
+      const plate = g.createRadialGradient(0, -40, 20, 0, 0, 210);
+      plate.addColorStop(0, "#2b2016");
+      plate.addColorStop(0.55, "#1d150e");
+      plate.addColorStop(1, "#0f0a06");
+      g.fillStyle = plate;
+      g.fill();
+
+      // Warm ambience behind the movement.
+      const warm = g.createRadialGradient(0, -10, 10, 0, 0, 200);
+      warm.addColorStop(0, "rgba(217,119,87,0.13)");
+      warm.addColorStop(0.55, "rgba(180,110,60,0.05)");
+      warm.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = warm;
+      g.fill();
+
+      // Engraved turning marks.
+      g.strokeStyle = "rgba(196,152,84,0.09)";
+      g.lineWidth = 1;
+      [70, 104, 150, 188].forEach((r) => {
+        g.beginPath();
+        g.arc(0, 0, r, 0, TAU);
+        g.stroke();
+      });
+
+      // Inscription.
+      g.fillStyle = "rgba(214,176,110,0.5)";
+      g.font = '600 11px Georgia, "Times New Roman", serif';
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("T E M P U S   F U G I T", 0, 178);
+
+      // ---- winding assembly at four o'clock: ratchet wheel, click and square
+      g.save();
+      g.translate(128, 62);
+
+      const RATCHET_TEETH = 18;
+      const step = TAU / RATCHET_TEETH;
+      g.beginPath();
+      for (let i = 0; i < RATCHET_TEETH; i += 1) {
+        const a = i * step;
+        g.lineTo(Math.cos(a) * 28, Math.sin(a) * 28);
+        g.lineTo(Math.cos(a + step * 0.76) * 37, Math.sin(a + step * 0.76) * 37);
+      }
+      g.closePath();
+      const rat = g.createRadialGradient(-10, -12, 4, 0, 0, 36);
+      rat.addColorStop(0, "#f4e0b0");
+      rat.addColorStop(0.6, "#bb8f42");
+      rat.addColorStop(1, "#6b4a18");
+      g.fillStyle = rat;
+      g.fill();
+      g.lineWidth = 1;
+      g.strokeStyle = "rgba(26,15,4,0.85)";
+      g.stroke();
+
+      g.beginPath();
+      g.arc(0, 0, 15, 0, TAU);
+      g.fillStyle = rat;
+      g.fill();
+      g.stroke();
+
+      // Square winding arbor.
+      g.beginPath();
+      g.roundRect(-7, -7, 14, 14, 3);
+      const sq = g.createLinearGradient(-7, -7, 7, 7);
+      sq.addColorStop(0, "#f3dda9");
+      sq.addColorStop(0.55, "#a87e34");
+      sq.addColorStop(1, "#5f421a");
+      g.fillStyle = sq;
+      g.fill();
+      g.stroke();
+
+      // Click and its spring, holding the ratchet.
+      bar(g, 24, -60, 18, -32, 3, 2.4, sq, "rgba(26,15,4,0.85)");
+      g.beginPath();
+      g.arc(24, -60, 6, 0, TAU);
+      g.fillStyle = sq;
+      g.fill();
+      g.stroke();
+      g.beginPath();
+      g.moveTo(24, -66);
+      g.quadraticCurveTo(42, -72, 54, -56);
+      g.lineWidth = 2;
+      g.strokeStyle = "rgba(226,222,210,0.7)";
+      g.stroke();
+      g.beginPath();
+      g.arc(54, -56, 4.5, 0, TAU);
+      g.fillStyle = sq;
+      g.fill();
+      g.stroke();
+      g.restore();
+      g.restore();
+
+      // Pillar screws holding the plates together.
+      SCREWS.forEach((deg) => {
+        const a = deg * D2R;
+        drawScrew(g, CX + Math.cos(a) * 186, CY + Math.sin(a) * 186, 6, deg * D2R);
+      });
+
+      return cv;
+    }
+
+    /* ------------------------------------------------------------------
+     * Wheel train
+     * ---------------------------------------------------------------- */
+
+    function updateTrain(escapeAngle) {
+      // The escape wheel is the fastest wheel; walk back up the train
+      // solving each meshing pair, so every wheel follows the tick.
+      gears[0].angle = escapeAngle;
+
+      for (let i = 1; i < gears.length; i += 1) {
+        const driven = gears[i - 1];
+        const driver = gears[i];
+        const phi = Math.atan2(driven.y - driver.y, driven.x - driver.x);
+
+        driver.angle = phi + (driven.teeth / driver.teeth) *
+          (phi + Math.PI + Math.PI / driven.teeth - driven.angle);
+      }
+    }
+
+    function drawTrain() {
+      for (let i = gears.length - 1; i >= 0; i -= 1) {
+        const gear = gears[i];
+
+        // Soft contact shadow so the wheels read as stacked metal.
+        const sh = ctx.createRadialGradient(
+          gear.x + 3, gear.y + 4, gear.tip * 0.15,
+          gear.x + 3, gear.y + 4, gear.tip * 1.02
+        );
+        sh.addColorStop(0, "rgba(0,0,0,0.55)");
+        sh.addColorStop(0.72, "rgba(0,0,0,0.35)");
+        sh.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.beginPath();
+        ctx.arc(gear.x + 3, gear.y + 4, gear.tip * 1.02, 0, TAU);
+        ctx.fillStyle = sh;
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(gear.x, gear.y);
+        ctx.rotate(gear.angle);
+        const half = gear.spriteHalf;
+        ctx.drawImage(gear.sprite, -half, -half, half * 2, half * 2);
+        ctx.restore();
+      }
+    }
+
+    /* ------------------------------------------------------------------
+     * Escapement: pallet fork, crutch and the pendulum
+     * ---------------------------------------------------------------- */
+
+    function drawEscapement(forkAngle) {
+      const edge = "rgba(24,14,4,0.85)";
+
+      ctx.save();
+      ctx.translate(FORK.pivot.x, FORK.pivot.y);
+      ctx.rotate(forkAngle);
+
+      const steel = ctx.createLinearGradient(-10, -30, 10, 30);
+      steel.addColorStop(0, "#e6e2d6");
+      steel.addColorStop(0.45, "#9d988c");
+      steel.addColorStop(1, "#4c4840");
+
+      // Arms reaching down to the two pallet stones.
+      pallets.forEach((p) => {
+        bar(ctx, 0, 0, p.x, p.y, 3.6, 2.5, steel, edge);
+
+        // Pallet stone, angled to face the escape wheel.
+        const toWheel = Math.atan2(
+          escapeWheel.y - FORK.pivot.y - p.y,
+          escapeWheel.x - FORK.pivot.x - p.x
+        );
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(toWheel);
+        ctx.beginPath();
+        ctx.rect(-3.6, -2.8, 7.2, 5.6);
+        const stone = ctx.createLinearGradient(-3, -2, 3, 2);
+        stone.addColorStop(0, "#f0a6b4");
+        stone.addColorStop(0.5, "#b8243f");
+        stone.addColorStop(1, "#5d0d1d");
+        ctx.fillStyle = stone;
+        ctx.fill();
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = "rgba(30,8,14,0.9)";
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // Crutch arm reaching across to the rod ...
+      bar(ctx, 0, 0, crutchTip.x, crutchTip.y, 3, 2.4, steel, edge);
+
+      // ... and the fork jaws that straddle it.
+      [-1, 1].forEach((side) => {
+        bar(ctx, crutchTip.x, crutchTip.y,
+          crutchTip.x + side * 5.5, crutchTip.y - 11, 2.1, 1.6, steel, edge);
+      });
+
+      // Fork boss and its bearing.
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, TAU);
+      const boss = ctx.createRadialGradient(-2, -3, 1, 0, 0, 7);
+      boss.addColorStop(0, "#f2dda9");
+      boss.addColorStop(0.6, "#b98e42");
+      boss.addColorStop(1, "#5c3f16");
+      ctx.fillStyle = boss;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = edge;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 2.6, 0, TAU);
+      ctx.fillStyle = "#8d1428";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPendulum(angle) {
+      // Suspension bracket stays fixed to the plate.
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(PEN.pivot.x - 15, PEN.pivot.y - 13, 30, 13, 4);
+      const brk = ctx.createLinearGradient(CX - 15, 0, CX + 15, 0);
+      brk.addColorStop(0, "#8a6428");
+      brk.addColorStop(0.4, "#e8cd92");
+      brk.addColorStop(1, "#6f4d1c");
+      ctx.fillStyle = brk;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(20,11,2,0.85)";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(CX, PEN.pivot.y);
+      ctx.lineTo(CX, PEN.pivot.y + 6);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = "rgba(226,222,210,0.85)";
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(PEN.pivot.x, PEN.pivot.y);
+      ctx.rotate(angle);
+
+      // Rod.
+      ctx.beginPath();
+      ctx.moveTo(-1.4, 0);
+      ctx.lineTo(-1.9, PEN.length);
+      ctx.lineTo(1.9, PEN.length);
+      ctx.lineTo(1.4, 0);
+      ctx.closePath();
+      const rod = ctx.createLinearGradient(-2, 0, 3, 0);
+      rod.addColorStop(0, "#f0ece0");
+      rod.addColorStop(0.35, "#b6b1a4");
+      rod.addColorStop(1, "#54504a");
+      ctx.fillStyle = rod;
+      ctx.fill();
+      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = "rgba(18,14,8,0.8)";
+      ctx.stroke();
+
+      // Bob.
+      ctx.beginPath();
+      ctx.arc(0, PEN.length, PEN.bob, 0, TAU);
+      const bob = ctx.createRadialGradient(
+        -PEN.bob * 0.35, PEN.length - PEN.bob * 0.4, PEN.bob * 0.08,
+        0, PEN.length, PEN.bob * 1.06
+      );
+      bob.addColorStop(0, "#fdf0cc");
+      bob.addColorStop(0.32, "#e6c67e");
+      bob.addColorStop(0.7, "#b98d3f");
+      bob.addColorStop(1, "#6d4c18");
+      ctx.fillStyle = bob;
+      ctx.fill();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "rgba(26,15,4,0.9)";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, PEN.length, PEN.bob - 7, 0, TAU);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(60,38,10,0.55)";
+      ctx.stroke();
+
+      // Rating nut under the bob.
+      ctx.beginPath();
+      ctx.rect(-9, PEN.length + PEN.bob - 1, 18, 10);
+      const nut = ctx.createLinearGradient(-9, 0, 9, 0);
+      nut.addColorStop(0, "#7d5a20");
+      nut.addColorStop(0.45, "#e2c689");
+      nut.addColorStop(1, "#6b4a18");
+      ctx.fillStyle = nut;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(20,11,2,0.85)";
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /* ------------------------------------------------------------------
+     * Hands
+     * ---------------------------------------------------------------- */
+
+    function handShape(g, cfg) {
+      const w = cfg.width;
+      const L = cfg.length;
+      const t = cfg.tail;
+
+      g.beginPath();
+      g.moveTo(0, -L);
+      g.lineTo(-w * 0.34, -L * 0.72);
+      g.lineTo(-w * 0.5, -L * 0.34);
+      g.lineTo(-w * 0.5, t * 0.35);
+      g.lineTo(-w * 0.66, t);
+      g.lineTo(w * 0.66, t);
+      g.lineTo(w * 0.5, t * 0.35);
+      g.lineTo(w * 0.5, -L * 0.34);
+      g.lineTo(w * 0.34, -L * 0.72);
+      g.closePath();
+    }
+
+    function drawHand(angle, cfg) {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(angle);
+
+      // Shadow.
+      ctx.save();
+      ctx.translate(2, 3);
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      handShape(ctx, cfg);
+      ctx.fill();
+      ctx.restore();
+
+      handShape(ctx, cfg);
+      const grad = ctx.createLinearGradient(-cfg.width, -cfg.length, cfg.width, cfg.tail);
+      grad.addColorStop(0, "#7e97c4");
+      grad.addColorStop(0.35, "#25395c");
+      grad.addColorStop(0.72, "#101b2e");
+      grad.addColorStop(1, "#4a5f86");
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.lineWidth = 0.9;
+      ctx.strokeStyle = "rgba(4,7,14,0.9)";
+      ctx.stroke();
+
+      if (cfg.spade) {
+        ctx.beginPath();
+        ctx.arc(0, -cfg.length * 0.6, cfg.width * 0.82, 0, TAU);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawSecondHand(angle) {
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(angle);
+
+      ctx.beginPath();
+      ctx.moveTo(0, 42);
+      ctx.lineTo(0, -168);
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = "#d97757";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, -140, 6.5, 0, TAU);
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(0, 34, 8, 0, TAU);
+      ctx.fillStyle = "#d97757";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawHands(t, beat, snap) {
+      const seconds = (beat % 60) + snap;
+      const minutes = (t / 60) % 60;
+      const hours = (t / 3600) % 12;
+
+      drawHand(hours * TAU / 12, { length: 96, width: 11, tail: 26, spade: true });
+      drawHand(minutes * TAU / 60, { length: 152, width: 8, tail: 30, spade: false });
+
+      // Centre boss over the hand roots.
+      ctx.beginPath();
+      ctx.arc(CX, CY, 12, 0, TAU);
+      const boss = ctx.createRadialGradient(CX - 4, CY - 5, 1, CX, CY, 12);
+      boss.addColorStop(0, "#fbeec8");
+      boss.addColorStop(0.55, "#c69f52");
+      boss.addColorStop(1, "#6a4a18");
+      ctx.fillStyle = boss;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(24,14,4,0.85)";
+      ctx.stroke();
+
+      drawSecondHand(seconds * TAU / 60);
+    }
+
+    /* ------------------------------------------------------------------
+     * Frame loop
+     * ---------------------------------------------------------------- */
+
+    let staticLayer = null;
+    let ratio = 1;
+
+    function resize() {
+      ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(SIZE * ratio);
+      canvas.height = Math.round(SIZE * ratio);
+      staticLayer = buildStatic(ratio);
+      gears.forEach((gear) => makeGearSprite(gear, ratio));
+    }
+
+    function frame() {
+      const now = new Date();
+      const t = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() +
+        now.getMilliseconds() / 1000;
+
+      // One escape per second; the wheel snaps in ~140 ms and then locks.
+      const beat = Math.floor(t);
+      const frac = t - beat;
+      const snap = 1 - Math.pow(1 - Math.min(1, frac / 0.14), 3);
+
+      updateTrain((beat + snap) * (TAU / escapeWheel.teeth));
+
+      // A 2 s pendulum crosses dead centre exactly on every whole second.
+      const swing = Math.sin(Math.PI * t);
+      const pendAngle = PEN.amplitude * swing;
+      const forkAngle = FORK.gain * pendAngle;
+
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      ctx.drawImage(staticLayer, 0, 0, SIZE, SIZE);
+
+      drawTrain();
+      drawEscapement(forkAngle);
+      drawPendulum(pendAngle);
+      drawHands(t, beat, snap);
+
+      // Glass reflection.
+      const glass = ctx.createLinearGradient(0, 0, SIZE, SIZE * 0.95);
+      glass.addColorStop(0, "rgba(255,255,255,0.055)");
+      glass.addColorStop(0.32, "rgba(255,255,255,0.012)");
+      glass.addColorStop(0.55, "rgba(255,255,255,0)");
+      glass.addColorStop(1, "rgba(255,255,255,0.02)");
+      ctx.fillStyle = glass;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      // Vignette.
+      const vig = ctx.createRadialGradient(CX, CY, SIZE * 0.3, CX, CY, SIZE * 0.72);
+      vig.addColorStop(0, "rgba(0,0,0,0)");
+      vig.addColorStop(1, "rgba(0,0,0,0.5)");
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      requestAnimationFrame(frame);
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+
+</html>
