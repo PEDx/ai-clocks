@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181b19">
+  <title>Atelier — A Mechanical Clock</title>
+  <style>
+    :root { color-scheme: dark; --ink: #e9e5da; --muted: #8f958b; --gold: #c7a777; --line: #ffffff16; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #181b19; color: var(--ink); font: 13px/1.5 system-ui, -apple-system, sans-serif; }
+    body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 43%, #70715d15, transparent 63%); }
+    button { font: inherit; }
+    .page { max-width: 1440px; margin: auto; padding: 0 5%; }
+    header { height: 86px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+    .brand { display: flex; gap: 12px; align-items: center; font-size: 13px; letter-spacing: .3em; font-weight: 500; }
+    .brand svg { color: var(--gold); width: 27px; height: 27px; }
+    .edition { color: var(--muted); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; }
+    main { text-align: center; }
+    .intro { padding-top: 35px; }
+    .eyebrow { color: var(--gold); text-transform: uppercase; font-size: 9px; letter-spacing: .26em; }
+    h1 { font: normal clamp(29px, 3.6vw, 45px)/1.2 Georgia, 'Times New Roman', serif; letter-spacing: -.035em; margin: 12px 0 10px; }
+    h1 em { font-weight: normal; color: #c7bba5; }
+    .subtitle { margin: 0; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+    .stage { position: relative; max-width: 1080px; margin: -2px auto -14px; }
+    canvas { display: block; width: min(100%, 650px); aspect-ratio: 1; margin: auto; touch-action: pan-y; }
+    .annotation { position: absolute; top: 43%; text-align: left; width: 150px; }
+    .annotation.left { left: 1%; }
+    .annotation.right { right: 0; }
+    .annotation::before { content: ""; display: block; width: 28px; height: 1px; background: #c7a77770; margin-bottom: 15px; }
+    .annotation span { display: block; color: #bcbcaf; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 6px; }
+    .annotation p { color: #757e73; margin: 0; font: italic 13px/1.7 Georgia, serif; }
+    .readout { display: flex; align-items: center; justify-content: center; gap: 13px; color: #a5aa9f; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: #a3b594; box-shadow: 0 0 8px #a3b59433; }
+    .dot.paused { background: var(--gold); }
+    time { font-variant-numeric: tabular-nums; min-width: 83px; font-size: 12px; color: #dedacc; letter-spacing: .14em; }
+    .divider { color: #565e52; }
+    .controls { display: flex; justify-content: center; gap: 8px; margin: 22px 0 31px; }
+    button { display: inline-flex; gap: 9px; justify-content: center; align-items: center; padding: 10px 15px; background: #ffffff03; color: #b8bdaf; border: 1px solid #ffffff15; border-radius: 5px; cursor: pointer; font-size: 11px; transition: background .2s, border-color .2s; }
+    button:hover { background: #ffffff08; border-color: #c7a77766; }
+    button:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+    button[aria-pressed="true"] { color: #dfc395; border-color: #c7a77760; }
+    button svg { width: 14px; height: 14px; flex: none; }
+    footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding: 20px 0 25px; color: #727b6e; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+    footer .signature { text-transform: none; letter-spacing: .02em; font: italic 12px Georgia, serif; color: #939887; }
+    #notice { min-height: 16px; margin: -21px 0 10px; color: var(--gold); font-size: 11px; }
+    @media (max-width: 900px) { .annotation { display: none; } }
+    @media (max-width: 540px) { .page { padding: 0 6%; } header { height: 68px; } .edition { font-size: 8px; letter-spacing: .1em; } .brand { font-size: 11px; gap: 8px; } .intro { padding-top: 30px; } .subtitle { font-size: 11px; } .stage { width: 112%; margin-left: -6%; margin-top: 12px; margin-bottom: -2px; } .readout { gap: 9px; font-size: 8px; } .controls { margin: 24px 0 32px; } footer { font-size: 8px; gap: 20px; } footer .signature { font-size: 11px; } }
+    @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand"><svg viewBox="0 0 30 30" fill="none" aria-hidden="true"><circle cx="15" cy="15" r="12" stroke="currentColor"/><circle cx="15" cy="15" r="8" stroke="currentColor" stroke-opacity=".45"/><path d="M15 6v9l5 3M15 1v4M15 25v4M1 15h4M25 15h4" stroke="currentColor"/></svg>ATELIER</div>
+      <div class="edition">Objects of time &nbsp; / &nbsp; No. 001</div>
+    </header>
+    <main>
+      <div class="intro">
+        <div class="eyebrow">The mechanical collection</div>
+        <h1>The art of <em>keeping time.</em></h1>
+        <p class="subtitle">A quiet study in motion, precision, and passing moments.</p>
+      </div>
+      <div class="stage">
+        <div class="annotation left"><span>01 / The movement</span><p>A small world of wheels.<br>Always in conversation.</p></div>
+        <canvas id="clock" width="800" height="800" role="img" aria-label="An animated brass mechanical clock showing your local time.">An animated mechanical clock. The current time is also displayed below.</canvas>
+        <div class="annotation right"><span>02 / The rhythm</span><p>One second at a time.<br>A moment, well kept.</p></div>
+      </div>
+      <div class="readout"><span class="dot" id="statusDot"></span><span id="status">Local time</span><span class="divider">/</span><time id="digital">00:00:00</time><span class="divider">/</span><span id="date"></span></div>
+      <div class="controls">
+        <button id="sound" type="button" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M9 4 5 7H2v6h3l4 3V4Z"/><path id="soundWaves" d="m13 7 5 6m0-6-5 6"/></svg><span>Sound off</span></button>
+        <button id="pause" type="button" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path id="pauseIcon" d="M7 4v12M13 4v12"/></svg><span>Pause motion</span></button>
+      </div>
+      <p id="notice" role="status"></p>
+    </main>
+    <footer><span>Canvas craftsmanship &nbsp; · &nbsp; Runs on your time</span><span class="signature">Made to watch the seconds go by.</span></footer>
+  </div>
+  <script>
+  (() => {
+    'use strict';
+    const canvas = document.getElementById('clock');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { document.getElementById('notice').textContent = 'This browser does not support Canvas 2D.'; return; }
+    const TAU = Math.PI * 2, CX = 400, CY = 322;
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    let paused = false, soundOn = false, audio = null, frozenTime = null;
+    let frame = 0, lastSecond = -1, lastPaintSecond = -1, scale = 1;
+    let face = null, faceScale = 0;
+    const digital = document.getElementById('digital');
+    const dateLabel = document.getElementById('date');
+    const pad = n => String(n).padStart(2, '0');
+
+    function circle(c, x, y, r, fill, stroke, width = 1) {
+      c.beginPath(); c.arc(x, y, r, 0, TAU);
+      if (fill) { c.fillStyle = fill; c.fill(); }
+      if (stroke) { c.strokeStyle = stroke; c.lineWidth = width; c.stroke(); }
+    }
+    function metal(c, x, y, radius, colors) {
+      const g = c.createLinearGradient(x-radius, y-radius, x+radius, y+radius);
+      colors.forEach((v, i) => g.addColorStop(i/(colors.length-1), v)); return g;
+    }
+    function screw(c, x, y, r = 4, a = -.6) {
+      circle(c, x, y, r+1, '#141815', '#93836b', .7);
+      circle(c, x, y, r, metal(c, x, y, r, ['#e8d7a4','#958568','#443e31']));
+      c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.moveTo(-r*.62, 0); c.lineTo(r*.62, 0); c.lineWidth = 1.4; c.strokeStyle = '#292d26'; c.stroke(); c.restore();
+    }
+    const gears = [
+      { x:-81, y:42, r:77, teeth:40, speed:1, phase:0, spokes:6 },
+      { x:39, y:86, r:54, teeth:28, speed:-40/28, phase:.08, spokes:5 },
+      { x:100, y:-10, r:61, teeth:32, speed:40/32, phase:.03, spokes:6 },
+      { x:0, y:-95, r:74, teeth:38, speed:-40/38, phase:.04, spokes:6 },
+      { x:-112, y:-83, r:40, teeth:20, speed:2, phase:0, spokes:4 },
+      { x:-32, y:151, r:40, teeth:20, speed:2, phase:.06, spokes:5 }
+    ];
+    function gear(c, g) {
+      const { r, teeth, spokes } = g;
+      c.save();
+      c.shadowColor = '#000a'; c.shadowBlur = 6; c.shadowOffsetY = 4;
+      c.beginPath();
+      for (let i=0; i<teeth; i++) {
+        for (const [fraction, radius] of [[0,r-5],[.18,r-5],[.28,r],[.70,r],[.80,r-5]]) {
+          const a=(i+fraction)*TAU/teeth; const x=Math.cos(a)*radius, y=Math.sin(a)*radius;
+          if (i===0 && fraction===0) c.moveTo(x,y); else c.lineTo(x,y);
+        }
+      }
+      c.closePath();
+      c.fillStyle = metal(c,0,0,r,['#70522c','#cfac64','#f0d89b','#a88143','#66502e']);
+      c.fill(); c.shadowColor='transparent'; c.lineWidth=.9; c.strokeStyle='#e3c37a'; c.stroke();
+      // Cut open spaces between the spokes so the deeper wheels remain visible.
+      c.globalCompositeOperation='destination-out';
+      for(let i=0;i<spokes;i++) {
+        const start=i*TAU/spokes+.12, end=(i+1)*TAU/spokes-.12;
+        c.beginPath(); c.arc(0,0,r-13,start,end); c.arc(0,0,15,end,start,true); c.closePath(); c.fill();
+      }
+      c.globalCompositeOperation='source-over';
+      circle(c,0,0,r-9,null,'#5c472f',1);
+      circle(c,0,0,r-12,null,'#efdaaa70',.8);
+      circle(c,0,0,13,'#ad874b','#f0d49a',1);
+      circle(c,0,0,7,'#3b3b2e','#d1b276',1);
+      c.restore();
+    }
+    function cacheGear(g) {
+      const density = Math.max(1.5, scale), side=(g.r+10)*2;
+      const sprite=document.createElement('canvas'); sprite.width=Math.ceil(side*density); sprite.height=sprite.width;
+      const c=sprite.getContext('2d'); c.scale(density,density); c.translate(side/2,side/2); gear(c,g);
+      g.sprite=sprite; g.side=side;
+    }
+    function buildFace() {
+      face=document.createElement('canvas'); face.width=canvas.width; face.height=canvas.height;
+      const c=face.getContext('2d'); c.scale(scale,scale); c.translate(CX,CY);
+      c.save(); c.shadowColor='#0009'; c.shadowBlur=32; c.shadowOffsetY=18;
+      circle(c,0,0,274,'#171b17'); c.restore();
+      circle(c,0,0,274,metal(c,0,0,274,['#9c8151','#e2c38a','#53472e','#c3a476','#3e3c2b']));
+      circle(c,0,0,269,'#222720','#f8e3b37a',1);
+      circle(c,0,0,261,metal(c,0,0,261,['#655636','#c8a776','#efdbad','#826946']), '#060b0880',2);
+      circle(c,0,0,253,'#ded8c4','#443c2a',2);
+      const enamel=c.createRadialGradient(-70,-100,10,0,0,254);
+      enamel.addColorStop(0,'#fbf7e9'); enamel.addColorStop(.7,'#eee8d8'); enamel.addColorStop(1,'#cec6ad');
+      circle(c,0,0,249,enamel);
+      circle(c,0,0,245,null,'#90836a',.7);
+      circle(c,0,0,221,null,'#9a8a6970',.7);
+      for(let i=0;i<60;i++) {
+        const a=i*TAU/60-Math.PI/2, outer=240, inner=i%5===0?229:235;
+        c.beginPath(); c.moveTo(Math.cos(a)*inner,Math.sin(a)*inner); c.lineTo(Math.cos(a)*outer,Math.sin(a)*outer);
+        c.strokeStyle='#494b3c'; c.lineWidth=i%5===0?2:1; c.stroke();
+      }
+      const numerals=['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+      c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#333b30'; c.font='22px Georgia, serif';
+      numerals.forEach((n,i)=>{const a=i*TAU/12-Math.PI/2; c.fillText(n,Math.cos(a)*208,Math.sin(a)*208+1);});
+      circle(c,0,0,188,'#1c211b','#b29761',3);
+      const well=c.createRadialGradient(-30,-40,0,0,0,185); well.addColorStop(0,'#414739'); well.addColorStop(1,'#1a201a');
+      circle(c,0,0,183,well,'#080d09',2);
+      // Fine concentric machining marks on the movement plate.
+      for(let r=8;r<183;r+=5) circle(c,0,0,r,null,'#d8cca708',.7);
+      for(let i=0;i<12;i++) { const a=i*TAU/12; circle(c,Math.cos(a)*176,Math.sin(a)*176,1,'#c6b38750'); }
+      c.save(); c.rotate(-.42); c.fillStyle=metal(c,0,0,150,['#3f4839','#68705b','#343e32']);
+      c.beginPath(); c.roundRect(-151,-17,304,34,14); c.fill(); c.strokeStyle='#b1a37a60'; c.lineWidth=1; c.stroke();
+      screw(c,-134,0,5); screw(c,134,0,5); c.restore();
+      for(const a of [Math.PI*.25,Math.PI*.75,Math.PI*1.25,Math.PI*1.75]) screw(c,Math.cos(a)*264,Math.sin(a)*264,3.5,a);
+      faceScale=scale;
+    }
+    function pendulum(seconds) {
+      ctx.save(); ctx.translate(CX,470); ctx.rotate(reducedMotion.matches?0:Math.sin(seconds*Math.PI)*.105);
+      ctx.shadowColor='#0006'; ctx.shadowBlur=12; ctx.shadowOffsetY=8;
+      ctx.fillStyle=metal(ctx,0,120,9,['#58462a','#ddc189','#7b643d']); ctx.fillRect(-4,0,8,222);
+      circle(ctx,0,221,37,metal(ctx,0,221,37,['#8e7347','#e6c991','#b28e55','#5c482d']),'#d9bd81',1);
+      ctx.shadowColor='transparent';
+      circle(ctx,0,221,30,null,'#6c5739',1); circle(ctx,0,221,27,null,'#e9d4a46b',1);
+      circle(ctx,0,221,5,'#a58953','#edd29a',1);
+      ctx.restore();
+    }
+    function hand(angle, length, width, tail, second=false) {
+      ctx.save(); ctx.translate(CX,CY); ctx.rotate(angle);
+      ctx.shadowColor='#0007'; ctx.shadowBlur=5; ctx.shadowOffsetX=2; ctx.shadowOffsetY=4;
+      ctx.beginPath();
+      if(second) { ctx.moveTo(-1.2,tail); ctx.lineTo(-.8,-length+9); ctx.lineTo(0,-length); ctx.lineTo(.8,-length+9); ctx.lineTo(1.2,tail); }
+      else { ctx.moveTo(0,-length); ctx.lineTo(width*.40,-length+23); ctx.lineTo(width*.32,-34); ctx.lineTo(width*.64,-17); ctx.lineTo(width*.50,tail-8); ctx.quadraticCurveTo(0,tail+4,-width*.50,tail-8); ctx.lineTo(-width*.64,-17); ctx.lineTo(-width*.32,-34); ctx.lineTo(-width*.40,-length+23); }
+      ctx.closePath(); ctx.fillStyle=second?'#ad593f':metal(ctx,0,0,width,['#0a171a','#33494b','#102326']); ctx.fill();
+      ctx.shadowColor='transparent'; ctx.strokeStyle=second?'#dcaa70':'#adbaae'; ctx.lineWidth=second?.4:.65; ctx.stroke();
+      if(!second) { ctx.beginPath();ctx.moveTo(0,-length+22);ctx.lineTo(0,-32);ctx.strokeStyle='#93a89c80';ctx.lineWidth=1;ctx.stroke(); }
+      else circle(ctx,0,tail-9,5,null,'#bf7953',1.5);
+      ctx.restore();
+    }
+    function draw(now) {
+      const seconds=now.getTime()/1000;
+      ctx.setTransform(scale,0,0,scale,0,0); ctx.clearRect(0,0,800,800);
+      // The almost invisible plinth gives the pendulum a grounded silhouette.
+      const glow=ctx.createRadialGradient(400,743,2,400,743,130); glow.addColorStop(0,'#0004');glow.addColorStop(1,'#0000');
+      ctx.save();ctx.translate(0,570);ctx.scale(1,.23);ctx.fillStyle=glow;ctx.fillRect(240,600,320,290);ctx.restore();
+      pendulum(seconds);
+      ctx.drawImage(face,0,0,face.width,face.height,0,0,800,800);
+      ctx.save(); ctx.translate(CX,CY);ctx.beginPath();ctx.arc(0,0,182,0,TAU);ctx.clip();
+      gears.forEach(g=>{
+        ctx.save();ctx.translate(g.x,g.y);ctx.rotate(g.phase+(reducedMotion.matches?0:(seconds*g.speed/60%1)*TAU));
+        ctx.drawImage(g.sprite,-g.side/2,-g.side/2,g.side,g.side);ctx.restore();
+        screw(ctx,g.x,g.y,4);
+      });
+      // A stationary balance bridge sits above the wheel train.
+      ctx.save();ctx.translate(0,-11);ctx.rotate(-.35);
+      ctx.beginPath();ctx.moveTo(-154,-10);ctx.lineTo(-37,-9);ctx.quadraticCurveTo(0,-31,34,-10);ctx.lineTo(152,-10);ctx.lineTo(152,9);ctx.lineTo(35,9);ctx.quadraticCurveTo(0,32,-36,10);ctx.lineTo(-154,10);ctx.closePath();
+      ctx.fillStyle=metal(ctx,0,0,150,['#7d6b45','#dbc79a','#9a8354','#e1cea2']);ctx.shadowColor='#0008';ctx.shadowBlur=7;ctx.shadowOffsetY=4;ctx.fill();ctx.shadowColor='transparent';ctx.strokeStyle='#f1ddb080';ctx.lineWidth=.8;ctx.stroke();
+      screw(ctx,-140,0,4);screw(ctx,140,0,4);ctx.restore();
+      // A small oscillating balance wheel, visible through the lower right opening.
+      ctx.save();ctx.translate(99,117);ctx.rotate(reducedMotion.matches?0:Math.sin(seconds*Math.PI*4)*.45);
+      circle(ctx,0,0,31,null,'#d7bb7b',3);circle(ctx,0,0,26,null,'#826a40',1);
+      for(let i=0;i<3;i++){ctx.rotate(TAU/3);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(29,0);ctx.strokeStyle='#b69c64';ctx.lineWidth=3;ctx.stroke();}
+      for(let i=0;i<4;i++)circle(ctx,0,0,7+i*3,null,'#a3a99780',.7);
+      screw(ctx,0,0,4);ctx.restore();ctx.restore();
+      ctx.save();ctx.translate(CX,CY);ctx.textAlign='center';ctx.fillStyle='#e3d7b4';ctx.font='9px Georgia, serif';ctx.letterSpacing='3px';ctx.fillText('ATELIER',0,-151);ctx.letterSpacing='1px';ctx.font='6px system-ui, sans-serif';ctx.fillStyle='#a7aa90';ctx.fillText('MECHANICAL · No. 001',0,-137);ctx.restore();
+      const sec=now.getSeconds()+now.getMilliseconds()/1000, min=now.getMinutes()+sec/60, hour=now.getHours()%12+min/60;
+      hand(hour*TAU/12,121,13,29); hand(min*TAU/60,177,9,34); hand(sec*TAU/60,218,2,49,true);
+      circle(ctx,CX,CY,10,'#c6a369','#eedbad',1);circle(ctx,CX,CY,6,'#172a2b','#ad9866',1);circle(ctx,CX-1,CY-1,2,'#aab5a2');
+      // A soft glass reflection across the upper rim.
+      ctx.beginPath();ctx.arc(CX,CY,271,Math.PI*1.13,Math.PI*1.82);ctx.strokeStyle='#fff5d63b';ctx.lineWidth=1.5;ctx.stroke();
+    }
+    function tick() {
+      if(!audio || audio.state!=='running') return;
+      const t=audio.currentTime, oscillator=audio.createOscillator(), gain=audio.createGain();
+      oscillator.type='sine';oscillator.frequency.setValueAtTime(lastSecond%2?1700:1350,t);oscillator.frequency.exponentialRampToValueAtTime(450,t+.025);
+      gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.065,t+.002);gain.gain.exponentialRampToValueAtTime(.0001,t+.045);
+      oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(t);oscillator.stop(t+.05);
+      oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+    }
+    function updateReadout(now) {
+      digital.textContent=`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      digital.dateTime=now.toISOString();
+      dateLabel.textContent=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+      canvas.setAttribute('aria-label',`Mechanical clock showing ${digital.textContent} local time${paused?', paused':''}.`);
+    }
+    function loop() {
+      if(document.hidden || paused) { frame=0;return; }
+      const now=new Date(), second=Math.floor(now.getTime()/1000);
+      if(second!==lastSecond){ const previous=lastSecond;lastSecond=second;updateReadout(now);if(soundOn && previous===second-1)tick(); }
+      if(!reducedMotion.matches || lastPaintSecond!==second){draw(now);lastPaintSecond=second;}
+      frame=requestAnimationFrame(loop);
+    }
+    function start() { cancelAnimationFrame(frame);lastSecond=-1;lastPaintSecond=-1;loop(); }
+    function resize() {
+      scale=Math.min(devicePixelRatio||1,2.5)*canvas.getBoundingClientRect().width/800;
+      canvas.width=Math.max(1,Math.round(800*scale));canvas.height=canvas.width;
+      if(!face || scale!==faceScale){ buildFace();gears.forEach(cacheGear); }
+      draw(frozenTime||new Date());lastPaintSecond=-1;
+    }
+    document.getElementById('pause').addEventListener('click',()=>{
+      paused=!paused;
+      const button=document.getElementById('pause');button.setAttribute('aria-pressed',String(paused));button.querySelector('span').textContent=paused?'Resume motion':'Pause motion';
+      document.getElementById('pauseIcon').setAttribute('d',paused?'M6 3l10 7-10 7V3Z':'M7 4v12M13 4v12');
+      document.getElementById('status').textContent=paused?'Paused':'Local time';document.getElementById('statusDot').classList.toggle('paused',paused);
+      if(paused){frozenTime=new Date();cancelAnimationFrame(frame);frame=0;draw(frozenTime);updateReadout(frozenTime);}
+      else{frozenTime=null;start();}
+    });
+    document.getElementById('sound').addEventListener('click',async()=>{
+      const button=document.getElementById('sound');
+      if(!soundOn){
+        try { const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)throw new Error('unsupported');audio=audio||new AudioContext();await audio.resume();if(audio.state!=='running')throw new Error('blocked'); }
+        catch { document.getElementById('notice').textContent='Sound is unavailable in this browser.';return; }
+      }
+      soundOn=!soundOn;button.setAttribute('aria-pressed',String(soundOn));button.querySelector('span').textContent=soundOn?'Sound on':'Sound off';
+      document.getElementById('soundWaves').setAttribute('d',soundOn?'M12 7q3 3 0 6M15 4q6 6 0 12':'m13 7 5 6m0-6-5 6');
+      document.getElementById('notice').textContent='';
+    });
+    document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;}else if(!paused)start();});
+    window.addEventListener('resize',resize);
+    reducedMotion.addEventListener('change',()=>{resize();if(!paused)start();});
+    resize();start();
+  })();
+  </script>
+</body>
+</html>

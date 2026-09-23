@@ -7,595 +7,141 @@
   <title>Mechanical Clock Gallery</title>
   <style>
     :root {
-      --bg: #FAF9F7;
-      --surface: #ffffff;
-      --text: #1A1612;
-      --text-secondary: #6B6560;
-      --muted: #9C9590;
-      --line: #E8E4DF;
-      --accent: #D97757;
-      --accent-soft: rgba(217, 119, 87, 0.08);
-      --radius: 16px;
+      --bg: #f5f4f0;
+      --surface: #fff;
+      --text: #262923;
+      --text-secondary: #6b7066;
+      --muted: #797d74;
+      --line: #e3e5dd;
+      --accent: #586448;
+      --accent-soft: #eef1e8;
+      --radius: 20px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 24px; }
+    body { margin: 0; color: var(--text); background: var(--bg); font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+    button, a, summary { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; cursor: pointer; }
+    button, a, summary { touch-action: manipulation; }
+    :focus-visible { outline: 3px solid #8a9b70; outline-offset: 4px; }
+    button svg, a svg { flex-shrink: 0; }
+    .page { max-width: 1440px; margin: 0 auto; padding: 48px 32px 64px 256px; }
 
-    html,
-    body {
-      margin: 0;
-      min-height: 100%;
-    }
+    .hero { margin-bottom: 24px; }
+    .timebar { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
+    .hero h1 { margin: 0; font-size: clamp(28px, 3vw, 40px); line-height: 1.2; font-weight: 650; letter-spacing: -.045em; }
+    .hero-description { margin: 12px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+    .time-meta { display: grid; justify-items: end; gap: 7px; flex-shrink: 0; }
+    .time-value { margin: 0; font-size: 28px; font-weight: 500; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+    .timezone { margin: 0; color: var(--muted); font-size: 11px; }
+    .repo-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; color: var(--text-secondary); text-decoration: none; font-size: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .repo-link:hover { color: var(--text); border-color: #b8bfac; }
+    .prompt-box { margin: 24px 0 30px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: #ffffff80; }
+    .prompt-box summary { display: flex; align-items: center; gap: 10px; padding: 14px 0; cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    .prompt-icon { color: var(--accent); display: flex; }
+    .prompt-label { font-size: 12px; font-weight: 600; }
+    .prompt-hint { color: var(--muted); font-size: 12px; }
+    .prompt-chevron { margin-left: auto; transition: transform 180ms; }
+    .prompt-box[open] .prompt-chevron { transform: rotate(180deg); }
+    .prompt-text { margin: 0; padding: 0 0 16px 28px; color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
 
-    body {
-      color: var(--text);
-      font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: var(--bg);
-    }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+    .card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 3px 5px #282d2003, 0 8px 24px #282d2004; transition: border-color 180ms, box-shadow 180ms; scroll-margin-top: 24px; }
+    .card:hover, .card:focus-within { border-color: #bdc5b1; box-shadow: 0 8px 28px #282d2010; }
+    .card:target { border-color: var(--accent); }
+    .card-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; }
+    .card-identity { min-width: 0; }
+    .card-title { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; letter-spacing: -.025em; overflow-wrap: anywhere; }
+    .preview { padding: 0 8px; }
+    .preview-frame { position: relative; width: 100%; aspect-ratio: 4 / 5; overflow: hidden; border: 1px solid #00000008; border-radius: 13px; background: #f0f0ec; }
+    iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+    .preview-frame iframe { position: absolute; inset: 0; width: 800px; height: 1000px; transform: scale(var(--preview-scale, 1)); transform-origin: top left; }
+    .card-footer { padding: 18px 20px 20px; }
+    .stats-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 18px; }
+    .stat-card { min-width: 0; padding: 0 14px; border-left: 1px solid var(--line); }
+    .stat-card:first-child { padding-left: 0; border-left: 0; }
+    .stat-label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 10px; line-height: 1.3; }
+    .stat-value { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .stat-unit { margin-left: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
+    .card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--text-secondary); background: var(--surface); font-size: 12px; font-weight: 550; text-decoration: none; transition: background 160ms, border-color 160ms, box-shadow 160ms; }
+    .card-button:hover { color: var(--text); background: #f5f6f1; border-color: #b8bfac; }
+    .card-button:active { transform: translateY(1px); }
+    .card-button.is-primary { color: #fff; background: #30392a; border-color: #30392a; }
+    .card-button.is-primary:hover { background: #47543d; border-color: #47543d; box-shadow: 0 3px 8px #30392a25; }
+    .card-details { margin-top: 14px; }
+    .card-details summary { display: flex; align-items: center; justify-content: center; gap: 5px; width: fit-content; min-height: 28px; margin: auto; color: var(--muted); font-size: 11px; list-style: none; cursor: pointer; }
+    .card-details summary:hover { color: var(--accent); }
+    .card-details[open] summary svg { transform: rotate(180deg); }
+    .detail-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); }
+    .detail-stats div { text-align: center; }
+    .detail-stats dt { color: var(--muted); font-size: 10px; }
+    .detail-stats dd { margin: 6px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; }
 
-    .page {
-      width: min(1420px, calc(100% - 48px));
-      margin: 0 auto;
-      padding: 48px 0 180px;
-    }
+    .model-directory { position: fixed; top: 36px; bottom: 36px; left: max(24px, calc((100vw - 1440px) / 2 + 24px)); z-index: 30; display: grid; grid-template-rows: auto minmax(0, 1fr); width: 200px; padding: 18px 10px 12px; border: 1px solid var(--line); border-radius: 16px; background: #fafbf7; }
+    .directory-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 8px 18px; }
+    .directory-title { margin: 0; font-size: 12px; font-weight: 650; }
+    .directory-count { color: var(--muted); font-size: 10px; }
+    .directory-list { display: flex; flex-direction: column; gap: 3px; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+    .directory-link { display: block; padding: 10px; border-radius: 8px; color: var(--text-secondary); font-size: 11px; line-height: 1.4; text-decoration: none; transition: background 150ms, color 150ms; }
+    .directory-link:hover { color: var(--text); background: #eef0e8; }
+    .directory-link.is-active { color: #445038; font-weight: 600; background: #e7ecde; }
+    .directory-toggle, .directory-close { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: var(--surface); }
+    .directory-toggle { position: fixed; left: 20px; bottom: 20px; z-index: 31; box-shadow: 0 4px 20px #26292320; }
+    .directory-backdrop { position: fixed; inset: 0; z-index: 29; background: #1a201a50; opacity: 0; pointer-events: none; transition: opacity 180ms; }
+    .preview-dialog { width: min(1100px, calc(100vw - 48px)); height: min(900px, calc(100dvh - 48px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 30px 100px #0003; }
+    .preview-dialog::backdrop { background: #171d19a6; backdrop-filter: blur(5px); }
+    .dialog-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .dialog-title { margin: 0 auto 0 0; font-size: 15px; }
+    .dialog-close { flex-shrink: 0; width: 42px; padding: 0; }
+    .dialog-frame { height: calc(100% - 67px); }
+    body.preview-open { overflow: hidden; }
 
-    .directory-toggle {
-      display: none;
-      position: fixed;
-      top: 50%;
-      left: 12px;
-      z-index: 31;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      color: var(--text-secondary);
-      background: var(--surface);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-      transform: translateY(-50%);
-      cursor: pointer;
+    @media (min-width: 1440px) { .page { max-width: 1660px; padding-left: 256px; } .model-directory { left: max(24px, calc((100vw - 1660px) / 2 + 24px)); } }
+    @media (max-width: 1100px) {
+      .page { padding: 32px 24px 64px; }
+      .directory-toggle { display: inline-flex; }
+      .directory-close { display: inline-flex; width: 32px; height: 32px; border: 0; background: transparent; }
+      .model-directory { top: 0; bottom: 0; left: 0; width: min(82vw, 300px); padding: 24px 14px; border-radius: 0 18px 18px 0; transform: translateX(-102%); visibility: hidden; transition: transform 200ms, visibility 200ms; }
+      body.directory-open .model-directory { transform: translateX(0); visibility: visible; }
+      body.directory-open .directory-backdrop { opacity: 1; pointer-events: auto; }
+      body.directory-open { overflow: hidden; }
+      body.directory-open .directory-toggle { visibility: hidden; }
     }
-
-    .directory-toggle:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .directory-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 29;
-      background: rgba(26, 22, 18, 0.24);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 180ms ease;
-    }
-
-    .model-directory {
-      position: fixed;
-      top: 50%;
-      left: max(16px, calc((100vw - 1420px) / 2 - 224px));
-      z-index: 30;
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
-      width: 196px;
-      height: min(72vh, 680px);
-      max-height: calc(100vh - 32px);
-      padding: 16px 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.96);
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
-      transform: translateY(-50%);
-      overflow: hidden;
-    }
-
-    .directory-heading {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 0 8px 10px;
-    }
-
-    .directory-title {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 650;
-      letter-spacing: 0.01em;
-    }
-
-    .directory-count {
-      color: var(--muted);
-      font-size: 11px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .directory-close {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      width: 30px;
-      height: 30px;
-      margin: -5px -2px -5px 0;
-      border: 0;
-      border-radius: 8px;
-      color: var(--muted);
-      background: transparent;
-      cursor: pointer;
-    }
-
-    .directory-close:hover {
-      color: var(--text);
-      background: rgba(0, 0, 0, 0.05);
-    }
-
-    .directory-list {
-      display: grid;
-      gap: 2px;
-      min-height: 0;
-      margin: 0;
-      padding: 0;
-      overflow-y: auto;
-      list-style: none;
-      scrollbar-width: thin;
-      scrollbar-color: var(--line) transparent;
-    }
-
-    .directory-link {
-      display: block;
-      overflow: hidden;
-      padding: 8px;
-      border-radius: 8px;
-      color: var(--text-secondary);
-      font-size: 12px;
-      line-height: 1.25;
-      text-decoration: none;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      transition: color 150ms ease, background 150ms ease;
-    }
-
-    .directory-link:hover {
-      color: var(--text);
-      background: var(--accent-soft);
-    }
-
-    .directory-link.is-active {
-      color: var(--accent);
-      font-weight: 600;
-      background: var(--accent-soft);
-    }
-
-    .hero {
-      margin-bottom: 32px;
-      padding: 28px 32px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-    }
-
-    .timebar {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .time-label {
-      margin: 0 0 6px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .time-value {
-      margin: 0;
-      font-size: clamp(28px, 4vw, 40px);
-      font-weight: 600;
-      line-height: 1;
-      letter-spacing: -0.03em;
-      font-variant-numeric: tabular-nums;
-      color: var(--text);
-    }
-
-    .timezone {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.4;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    .time-meta {
-      display: grid;
-      justify-items: end;
-      gap: 10px;
-    }
-
-    .repo-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1;
-      text-decoration: none;
-      background: var(--surface);
-      transition: border-color 150ms ease, color 150ms ease;
-    }
-
-    .repo-link:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .prompt-box {
-      position: fixed;
-      left: 50%;
-      bottom: 24px;
-      z-index: 20;
-      display: grid;
-      gap: 12px;
-      width: min(720px, calc(100vw - 48px));
-      padding: 16px 20px 14px;
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--surface);
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-      transform: translateX(-50%);
-    }
-
-    .prompt-main {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      min-height: 40px;
-    }
-
-    .prompt-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      flex: 0 0 28px;
-      border-radius: 8px;
-      color: var(--accent);
-      background: var(--accent-soft);
-    }
-
-    .prompt-text {
-      flex: 1 1 auto;
-      margin: 3px 0 0;
-      color: var(--text);
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .prompt-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .prompt-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .tool-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      border: 0;
-      border-radius: 999px;
-      color: var(--muted);
-      background: transparent;
-      transition: background 150ms ease, color 150ms ease;
-    }
-
-    .tool-button:hover {
-      background: rgba(0, 0, 0, 0.04);
-      color: var(--text-secondary);
-    }
-
-    .prompt-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-left: auto;
-    }
-
-    .model-select {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      height: 32px;
-      padding: 0 12px;
-      border-radius: 999px;
-      color: var(--text-secondary);
-      font-size: 13px;
-      font-weight: 500;
-      background: transparent;
-      white-space: nowrap;
-      transition: background 150ms ease;
-    }
-
-    .model-select:hover {
-      background: rgba(0, 0, 0, 0.04);
-    }
-
-    .send-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
-      color: #fff;
-      background: var(--text);
-      transition: opacity 150ms ease;
-    }
-
-    .send-button:hover {
-      opacity: 0.85;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 20px;
-    }
-
-    .card {
-      position: relative;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      transition: box-shadow 200ms ease;
-    }
-
-    .card:hover {
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-    }
-
-    .card-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .card-title {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.3;
-      letter-spacing: -0.01em;
-    }
-
-    .card-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex: 0 0 auto;
-      height: 32px;
-      padding: 0 14px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 500;
-      text-decoration: none;
-      background: var(--surface);
-      transition: border-color 150ms ease, color 150ms ease;
-    }
-
-    .card-link:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .card-link-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .stats-panel {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-      padding: 14px 20px 16px;
-      border-bottom: 1px solid var(--line);
-      background:
-        linear-gradient(180deg, rgba(250, 249, 247, 0.7), rgba(255, 255, 255, 0.95));
-    }
-
-    .stat-card {
-      min-width: 0;
-      padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: var(--surface);
-    }
-
-    .stat-card.is-primary {
-      border-color: rgba(217, 119, 87, 0.22);
-      background: var(--accent-soft);
-    }
-
-    .stat-value {
-      display: block;
-      color: var(--text);
-      font-size: 18px;
-      font-weight: 650;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-
-    .stat-label {
-      display: block;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1.2;
-      white-space: nowrap;
-    }
-
-    .stat-card.is-compact {
-      padding: 8px 10px;
-    }
-
-    .stat-card.is-compact .stat-value {
-      font-size: 14px;
-    }
-
-    .preview {
-      position: relative;
-      aspect-ratio: 1 / 1;
-      padding: 12px;
-    }
-
-    .preview-frame {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      border-radius: 10px;
-      background: #fff;
-      border: 1px solid var(--line);
-    }
-
-    iframe {
-      display: block;
-      width: 100%;
-      height: 100%;
-      border: 0;
-      background: #fff;
-    }
-
     @media (max-width: 720px) {
-      .directory-toggle {
-        display: inline-flex;
-      }
-
-      .directory-backdrop {
-        display: block;
-      }
-
-      .model-directory {
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: min(82vw, 320px);
-        height: 100%;
-        max-height: none;
-        padding: 22px 14px 18px;
-        border-width: 0 1px 0 0;
-        border-radius: 0 18px 18px 0;
-        box-shadow: 8px 0 28px rgba(0, 0, 0, 0.12);
-        transform: translateX(-102%);
-        transition: transform 220ms ease;
-      }
-
-      .directory-heading {
-        padding: 0 8px 14px;
-      }
-
-      .directory-close {
-        display: inline-flex;
-      }
-
-      body.directory-open .model-directory {
-        transform: translateX(0);
-      }
-
-      body.directory-open .directory-backdrop {
-        opacity: 1;
-        pointer-events: auto;
-      }
-
-      body.directory-open {
-        overflow: hidden;
-      }
-
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .page {
-        width: min(100% - 32px, 1200px);
-        padding: 24px 0 180px;
-      }
-
-      .hero {
-        padding: 20px;
-      }
-
-      .timebar {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      .timezone {
-        text-align: left;
-        white-space: normal;
-      }
-
-      .time-meta {
-        justify-items: start;
-      }
-
-      .card-head {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .stats-panel {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .prompt-toolbar {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      .prompt-meta {
-        margin-left: 0;
-      }
-
-      .prompt-box {
-        bottom: 16px;
-        width: min(calc(100vw - 32px), 720px);
-      }
+      .page { padding: 28px 16px 84px; }
+      .grid { grid-template-columns: 1fr; gap: 20px; }
+      .timebar { align-items: flex-start; gap: 16px; }
+      .hero h1 { font-size: 28px; }
+      .hero-description { max-width: 210px; font-size: 12px; }
+      .time-meta { padding-top: 3px; }
+      .time-value { font-size: 22px; }
+      .timezone { max-width: 125px; text-align: right; font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+      .repo-link { padding: 7px 9px; font-size: 10px; }
+      .prompt-box { margin: 20px 0 24px; padding: 0 12px; }
+      .prompt-hint { font-size: 10px; }
+      .prompt-text { padding-left: 0; font-size: 12px; }
+      .card-head { padding: 16px; gap: 10px; }
+      .card-title { font-size: 15px; }
+      .card-footer { padding: 16px; }
+      .card-button { min-height: 44px; }
+      .preview-dialog { width: calc(100vw - 16px); height: calc(100dvh - 24px); border-radius: 14px; }
+      .dialog-head { padding: 10px; gap: 8px; }
+      .dialog-title { font-size: 13px; }
+      .dialog-head .card-button { font-size: 11px; }
+      .dialog-frame { height: calc(100% - 65px); }
     }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
   </style>
 </head>
 
 <body>
-  <button class="directory-toggle" id="directoryToggle" type="button" aria-label="打开模型目录" aria-controls="modelDirectory" aria-expanded="false">
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+  <button class="directory-toggle" id="directoryToggle" type="button" aria-label="打开模型目录" aria-controls="modelDirectory"
+    aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8"
+      stroke-linecap="round" aria-hidden="true">
       <path d="M5 6h14M5 12h14M5 18h14"></path>
     </svg>
   </button>
@@ -605,7 +151,8 @@
       <h2 class="directory-title">模型目录</h2>
       <span class="directory-count" id="directoryCount">--</span>
       <button class="directory-close" id="directoryClose" type="button" aria-label="关闭模型目录">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" aria-hidden="true">
           <path d="M6 6l12 12M18 6L6 18"></path>
         </svg>
       </button>
@@ -617,10 +164,11 @@
     <section class="hero">
       <div class="timebar">
         <div>
-          <p class="time-label">Current Time</p>
-          <p class="time-value" id="timeValue">--:--:--</p>
+          <h1>同一刻，不同想象。</h1>
+          <p class="hero-description">同一个提示词，看不同 AI 如何描绘时间。</p>
         </div>
         <div class="time-meta">
+          <p class="time-value" id="timeValue">--:--:--</p>
           <p class="timezone" id="timezoneValue">Timezone: --</p>
           <a class="repo-link" href="https://github.com/PEDx/ai-clocks" target="_blank" rel="noreferrer">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
@@ -628,64 +176,49 @@
                 d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.1 3.3 9.43 7.88 10.96.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.55-3.88-1.55-.52-1.34-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.19 1.75 1.19 1.02 1.75 2.67 1.25 3.32.95.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.25.45-2.27 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a10.9 10.9 0 0 1 5.78 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.24 2.75.12 3.04.74.81 1.18 1.83 1.18 3.08 0 4.41-2.68 5.39-5.24 5.68.41.36.78 1.08.78 2.18 0 1.57-.01 2.84-.01 3.22 0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.66 18.35.5 12 .5z">
               </path>
             </svg>
-            <span>GitHub Repo</span>
+            <span>GitHub</span>
           </a>
         </div>
       </div>
     </section>
 
-    <section class="grid" id="grid" aria-label="Model clock preview list"></section>
+    <details class="prompt-box">
+      <summary>
+        <span class="prompt-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/></svg>
+        </span>
+        <span class="prompt-label">统一提示词</span>
+        <span class="prompt-hint">一个命题，多种表达</span>
+        <svg class="prompt-chevron" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg>
+      </summary>
+      <p class="prompt-text">Help me draw a mechanical clock using cavans and generate an HTML file that I can open directly in the browser.</p>
+    </details>
+    <section class="grid" id="grid" aria-label="模型钟表作品"></section>
   </main>
 
-  <div class="prompt-box" aria-label="Common AI model prompt">
-    <div class="prompt-main">
-      <div class="prompt-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"
-          stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
-        </svg>
-      </div>
-      <div class="prompt-text">Help me draw a mechanical clock using cavans and generate an HTML file that I can open
-        directly in the browser.</div>
+  <dialog class="preview-dialog" id="previewDialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head">
+      <h2 class="dialog-title" id="dialogTitle"></h2>
+      <a class="card-button" id="dialogLink" target="_blank" rel="noreferrer">独立打开 ↗</a>
+      <button class="card-button dialog-close" id="dialogClose" type="button" aria-label="关闭预览" autofocus>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
     </div>
-    <div class="prompt-toolbar">
-      <div class="prompt-actions" aria-hidden="true">
-        <div class="tool-button">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"
-            stroke-linecap="round">
-            <path d="M12 5v14M5 12h14"></path>
-          </svg>
-        </div>
-        <div class="tool-button">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 12h8"></path>
-            <path d="M12 8v8"></path>
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-          </svg>
-        </div>
-      </div>
-      <div class="prompt-meta">
-        <div class="model-select">
-          <span>Claude Sonnet 4</span>
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M5 7.5l5 5 5-5"></path>
-          </svg>
-        </div>
-        <div class="send-button" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14"></path>
-            <path d="M19 12l-7-7-7 7"></path>
-          </svg>
-        </div>
-      </div>
-    </div>
-  </div>
+    <div class="dialog-frame" id="dialogFrame"></div>
+  </dialog>
 
   <script>
     const models = [
+      {
+        name: "Codex GPT 6 Astra",
+        path: "./models/codex-6-astra/index.html",
+        stats: { lines: 289, codeLines: 282, blankLines: 1, commentLines: 6, functions: 24, scripts: 1, styles: 1, bytes: 21174 }
+      },
+      {
+        name: "Codex GPT 6 Sol",
+        path: "./models/codex-6-sol/index.html",
+        stats: { lines: 290, codeLines: 263, blankLines: 22, commentLines: 5, functions: 17, scripts: 1, styles: 1, bytes: 14369 }
+      },
       {
         name: "DeepSeek Flash",
         path: "./models/deepseek-flash/index.html",
@@ -833,7 +366,7 @@
       }).format(now)
 
       timeValue.textContent = timeText
-      timezoneValue.textContent = `Timezone: ${timezone}`
+      timezoneValue.textContent = timezone
     }
     updateTime()
     window.setInterval(updateTime, 1000)
@@ -844,67 +377,90 @@
       return `${(bytes / 1024).toFixed(1)} KB`
     }
 
-    models.forEach((model) => {
+
+    models.forEach((model, index) => {
       const card = document.createElement("article")
       card.className = "card"
-      card.id = `model-${models.indexOf(model)}`
+      card.id = `model-${index}`
       const stats = model.stats || {}
 
       card.innerHTML = `
         <div class="card-head">
-          <div>
-            <h2 class="card-title">${model.name}</h2>
-          </div>
-          <a class="card-link" href="${model.path}" target="_blank" rel="noreferrer">
-            <span>Open separately</span>
-            <span class="card-link-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M7 17L17 7"></path>
-                <path d="M9 7h8v8"></path>
-              </svg>
-            </span>
-          </a>
-        </div>
-        <div class="stats-panel" aria-label="${model.name} code statistics">
-          <div class="stat-card is-primary">
-            <span class="stat-value">${stats.lines ?? "-"}</span>
-            <span class="stat-label">Lines</span>
-          </div>
-          <div class="stat-card is-primary">
-            <span class="stat-value">${stats.functions ?? "-"}</span>
-            <span class="stat-label">Functions</span>
-          </div>
-          <div class="stat-card is-primary">
-            <span class="stat-value">${stats.commentLines ?? "-"}</span>
-            <span class="stat-label">Comments</span>
-          </div>
-          <div class="stat-card is-primary">
-            <span class="stat-value">${formatBytes(stats.bytes)}</span>
-            <span class="stat-label">Size</span>
-          </div>
-          <div class="stat-card is-compact">
-            <span class="stat-value">${stats.codeLines ?? "-"}</span>
-            <span class="stat-label">Code lines</span>
-          </div>
-          <div class="stat-card is-compact">
-            <span class="stat-value">${stats.blankLines ?? "-"}</span>
-            <span class="stat-label">Blank lines</span>
+          <div class="card-identity">
+            <h3 class="card-title">${model.name}</h3>
           </div>
         </div>
         <div class="preview">
           <div class="preview-frame">
-            <iframe
-              src="${model.path}"
-              title="${model.name} mechanical clock preview"
-              loading="lazy"
-              referrerpolicy="no-referrer"
-            ></iframe>
+            <iframe src="${model.path}" title="${model.name} mechanical clock preview" loading="lazy" referrerpolicy="no-referrer"></iframe>
           </div>
         </div>
+        <div class="card-footer">
+          <dl class="stats-panel" aria-label="${model.name} 代码统计">
+            <div class="stat-card"><dt class="stat-label">代码总行数</dt><dd class="stat-value">${stats.lines ?? "-"}<span class="stat-unit">行</span></dd></div>
+            <div class="stat-card"><dt class="stat-label">函数数量</dt><dd class="stat-value">${stats.functions ?? "-"}<span class="stat-unit">个</span></dd></div>
+            <div class="stat-card"><dt class="stat-label">文件大小</dt><dd class="stat-value">${formatBytes(stats.bytes)}</dd></div>
+          </dl>
+          <div class="card-actions">
+            <button class="card-button" type="button" data-preview="${index}" aria-label="放大预览 ${model.name}" aria-haspopup="dialog">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>
+              放大预览
+            </button>
+            <a class="card-button is-primary" href="${model.path}" target="_blank" rel="noreferrer" aria-label="独立打开 ${model.name}（新标签页）">
+              独立打开
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
+            </a>
+          </div>
+          <details class="card-details">
+            <summary>代码详情 <svg viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg></summary>
+            <dl class="detail-stats">
+              <div><dt>有效代码</dt><dd>${stats.codeLines ?? "-"} 行</dd></div>
+              <div><dt>注释</dt><dd>${stats.commentLines ?? "-"} 行</dd></div>
+              <div><dt>空行</dt><dd>${stats.blankLines ?? "-"} 行</dd></div>
+            </dl>
+          </details>
+        </div>
       `
-
       grid.appendChild(card)
-    });
+    })
+
+    // Give every clock the same canvas viewport, then scale it to fit its card.
+    const previewObserver = new ResizeObserver((entries) => {
+      entries.forEach(({ target, contentRect }) => {
+        target.style.setProperty("--preview-scale", contentRect.width / 800)
+      })
+    })
+    document.querySelectorAll(".preview-frame").forEach((frame) => previewObserver.observe(frame))
+
+    const previewDialog = document.getElementById("previewDialog")
+    const dialogFrame = document.getElementById("dialogFrame")
+    let previewTrigger = null
+
+    grid.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-preview]")
+      if (!trigger) return
+      const model = models[Number(trigger.dataset.preview)]
+      previewTrigger = trigger
+      document.getElementById("dialogTitle").textContent = model.name
+      document.getElementById("dialogLink").href = model.path
+      const frame = document.createElement("iframe")
+      frame.src = model.path
+      frame.title = `${model.name} 放大预览`
+      frame.referrerPolicy = "no-referrer"
+      dialogFrame.replaceChildren(frame)
+      previewDialog.showModal()
+      document.body.classList.add("preview-open")
+    })
+    document.getElementById("dialogClose").addEventListener("click", () => previewDialog.close())
+    previewDialog.addEventListener("click", (event) => {
+      const rect = previewDialog.getBoundingClientRect()
+      if (event.target === previewDialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) previewDialog.close()
+    })
+    previewDialog.addEventListener("close", () => {
+      dialogFrame.replaceChildren()
+      document.body.classList.remove("preview-open")
+      previewTrigger?.focus({ preventScroll: true })
+    })
 
     const directoryList = document.getElementById("modelDirectoryList")
     const directoryCount = document.getElementById("directoryCount")

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b20">
+  <title>The Clockmaker — Mechanical Canvas Clock</title>
+  <style>
+    :root { color-scheme: dark; font-family: Georgia, 'Times New Roman', serif; }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: #101b20; }
+    body {
+      min-height: 100vh; margin: 0; color: #ecdfc4;
+      background: radial-gradient(ellipse at 50% 32%, #263b3d 0, #15262b 44%, #101b20 78%);
+      overflow-x: hidden;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; opacity: .24;
+      background-image: linear-gradient(#d8bd7b0a 1px, transparent 1px), linear-gradient(90deg, #d8bd7b0a 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(ellipse at center, #000, transparent 80%);
+    }
+    .page { position: relative; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 34px 20px 24px; }
+    .masthead { text-align: center; z-index: 1; }
+    .eyebrow { margin: 0; color: #c6a770; font: 600 10px/1.4 Arial, sans-serif; letter-spacing: .38em; text-transform: uppercase; }
+    h1 { margin: 10px 0 0; font-weight: 400; font-size: clamp(29px, 4vw, 47px); letter-spacing: -.045em; line-height: 1.05; }
+    .subtitle { margin: 11px 0 0; color: #aab9b6; font: 12px/1.5 Arial, sans-serif; letter-spacing: .12em; }
+    .clock-wrap { width: min(100%, 760px); margin: -4px auto -30px; aspect-ratio: 800 / 790; position: relative; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .readout { z-index: 1; display: flex; align-items: center; gap: 18px; margin-top: 0; color: #c6a770; font: 11px/1.5 Arial, sans-serif; letter-spacing: .22em; text-transform: uppercase; }
+    .readout::before, .readout::after { content: ''; display: block; width: clamp(25px, 7vw, 80px); height: 1px; background: linear-gradient(90deg, transparent, #9d8459); }
+    .readout::after { transform: rotate(180deg); }
+    .time { margin: 7px 0 0; color: #f4e8cf; font: 400 20px/1.4 Georgia, serif; font-variant-numeric: tabular-nums; letter-spacing: .14em; text-align: center; }
+    .footer { margin-top: auto; padding-top: 22px; color: #768c89; font: 10px/1.5 Arial, sans-serif; letter-spacing: .2em; text-transform: uppercase; text-align: center; }
+    @media (max-width: 600px) {
+      .page { padding: 27px 12px 20px; }
+      .clock-wrap { width: min(100vw, 520px); margin: 17px auto 7px; }
+      .subtitle { font-size: 11px; }
+      .footer { padding-top: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <p class="eyebrow">The Clockmaker's Atelier · No. 01</p>
+      <h1>Time, laid bare.</h1>
+      <p class="subtitle">A little machine for the passing moments</p>
+    </header>
+    <div class="clock-wrap">
+      <canvas id="clock" role="img" aria-label="Animated mechanical clock showing the current local time">Your browser does not support Canvas.</canvas>
+    </div>
+    <div class="readout" id="date"></div>
+    <p class="time" id="time" aria-live="off"></p>
+    <div class="footer">Designed to keep moving · Powered by your local time</div>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+
+      const canvas = document.getElementById('clock');
+      const ctx = canvas.getContext('2d');
+      const timeLabel = document.getElementById('time');
+      const dateLabel = document.getElementById('date');
+      if (!ctx) return;
+
+      const W = 800, H = 790, CX = 400, CY = 341, R = 270;
+      const TAU = Math.PI * 2;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let lastSecond = -1;
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+      }
+
+      function circle(x, y, radius, fill, stroke, lineWidth = 1) {
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, TAU);
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
+      }
+
+      function line(x1, y1, x2, y2, stroke, width = 1) {
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke();
+      }
+
+      function radial(x, y, inner, outer, stops) {
+        const gradient = ctx.createRadialGradient(x, y, inner, x, y, outer);
+        stops.forEach(([at, color]) => gradient.addColorStop(at, color));
+        return gradient;
+      }
+
+      function bolt(x, y, size = 5) {
+        circle(x, y, size + 2, '#332819');
+        circle(x, y, size, radial(x - 2, y - 2, 0, size * 2, [[0, '#f2d694'], [1, '#82643a']]), '#46331e');
+        line(x - size * .55, y + size * .35, x + size * .55, y - size * .35, '#66502e', 1.3);
+      }
+
+      function gear(x, y, radius, teeth, angle, tone = 'gold') {
+        const light = tone === 'gold' ? '#b99a5b' : '#75918a';
+        const dark = tone === 'gold' ? '#594728' : '#344c4d';
+        const rim = tone === 'gold' ? '#d9bc79' : '#9fb2a7';
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+        ctx.beginPath();
+        for (let i = 0; i < teeth * 4; i++) {
+          const a = i * TAU / (teeth * 4);
+          const rr = radius + (i % 4 === 1 || i % 4 === 2 ? 7 : 0);
+          const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fillStyle = radial(0, 0, radius * .25, radius + 8, [[0, light], [.74, dark], [1, rim]]); ctx.fill();
+        ctx.strokeStyle = '#e4c98288'; ctx.lineWidth = 1.4; ctx.stroke();
+        circle(0, 0, radius * .77, '#17282a', dark, 5);
+        circle(0, 0, radius * .64, null, rim + '99', 3);
+        for (let i = 0; i < 6; i++) {
+          ctx.save(); ctx.rotate(i * TAU / 6);
+          ctx.beginPath(); ctx.moveTo(-5, -radius * .69); ctx.lineTo(5, -radius * .69);
+          ctx.lineTo(9, -radius * .12); ctx.lineTo(-9, -radius * .12); ctx.closePath();
+          ctx.fillStyle = light; ctx.fill(); ctx.restore();
+        }
+        circle(0, 0, radius * .19, rim, '#473b25', 3);
+        circle(0, 0, radius * .075, '#293a37');
+        ctx.restore();
+      }
+
+      function casework() {
+        ctx.save(); ctx.shadowColor = '#030b0c'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 22;
+        ctx.beginPath();
+        ctx.moveTo(172, 390); ctx.bezierCurveTo(174, 193, 246, 48, 400, 41);
+        ctx.bezierCurveTo(554, 48, 626, 193, 628, 390);
+        ctx.lineTo(593, 684); ctx.quadraticCurveTo(400, 754, 207, 684); ctx.closePath();
+        ctx.fillStyle = '#0d1b1e'; ctx.fill(); ctx.restore();
+        ctx.strokeStyle = '#8d7242'; ctx.lineWidth = 9; ctx.stroke();
+        ctx.strokeStyle = '#d4b97966'; ctx.lineWidth = 2; ctx.stroke();
+
+        // The open lower compartment frames the swinging pendulum.
+        ctx.beginPath(); ctx.moveTo(233, 555); ctx.lineTo(233, 680);
+        ctx.quadraticCurveTo(400, 725, 567, 680); ctx.lineTo(567, 555);
+        ctx.strokeStyle = '#82673d'; ctx.lineWidth = 13; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(241, 561); ctx.lineTo(241, 671);
+        ctx.quadraticCurveTo(400, 709, 559, 671); ctx.lineTo(559, 561);
+        ctx.strokeStyle = '#d1b47455'; ctx.lineWidth = 2; ctx.stroke();
+
+        // Crown and its small winding finial.
+        ctx.beginPath(); ctx.moveTo(330, 62); ctx.quadraticCurveTo(400, 21, 470, 62);
+        ctx.strokeStyle = '#aa8b54'; ctx.lineWidth = 13; ctx.stroke();
+        circle(400, 37, 17, radial(393, 29, 0, 30, [[0, '#ecd299'], [1, '#72572f']]), '#3c301e', 3);
+        circle(400, 37, 5, '#243132');
+        [260, 540].forEach(x => bolt(x, 646, 6));
+      }
+
+      function pendulum(t) {
+        const angle = Math.sin(t * TAU / 2.25) * .17;
+        ctx.save(); ctx.translate(CX, 511); ctx.rotate(angle);
+        ctx.shadowColor = '#040d0e'; ctx.shadowBlur = 12;
+        line(0, 0, 0, 164, '#3a2d1d', 12);
+        line(-2, 0, -2, 164, '#d2b576', 5);
+        circle(0, 163, 40, radial(-11, 147, 4, 65, [[0, '#f5dfa3'], [.42, '#ae8d52'], [1, '#41341e']]), '#d6b676', 3);
+        circle(0, 163, 28, null, '#49391e88', 1.5);
+        ctx.restore();
+      }
+
+      function face(t) {
+        ctx.save(); ctx.shadowColor = '#03090a'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 15;
+        circle(CX, CY, R + 21, radial(CX - 75, CY - 105, 15, 380, [[0, '#d4b97a'], [.56, '#67522d'], [.9, '#aa8b50'], [1, '#3d3425']]), '#1e211e', 5);
+        ctx.restore();
+        circle(CX, CY, R + 10, '#162628', '#f2d99a88', 2);
+        circle(CX, CY, R - 1, '#0d1c20', '#534929', 3);
+        circle(CX, CY, R - 15, null, '#bd9e5e', 1.5);
+
+        // Frosted enamel chapter ring with a transparent mechanical center.
+        ctx.beginPath(); ctx.arc(CX, CY, R - 20, 0, TAU); ctx.arc(CX, CY, 173, 0, TAU, true);
+        ctx.fillStyle = radial(CX - 65, CY - 80, 90, R + 8, [[0, '#e5d6b1'], [.65, '#e4d6b8'], [1, '#a99670']]); ctx.fill('evenodd');
+        ctx.strokeStyle = '#54442b'; ctx.lineWidth = 2; ctx.stroke();
+        circle(CX, CY, 173, '#102125', '#b99c60', 8);
+
+        ctx.save(); ctx.beginPath(); ctx.arc(CX, CY, 168, 0, TAU); ctx.clip();
+        const chamber = radial(CX, CY, 10, 190, [[0, '#2b4240'], [.7, '#17292b'], [1, '#091719']]);
+        circle(CX, CY, 168, chamber);
+        for (let i = -170; i <= 170; i += 24) line(CX + i, CY - 170, CX + i - 95, CY + 170, '#e2c8870b', 1);
+        gear(359, 293, 71, 19, t * .24, 'gold');
+        gear(462, 303, 55, 16, -t * .31, 'steel');
+        gear(423, 406, 68, 20, t * .19, 'gold');
+        gear(318, 409, 39, 13, -t * .45, 'steel');
+        gear(480, 395, 30, 12, -t * .52, 'gold');
+        // Fixed bridges hold the exposed train in place.
+        ctx.lineCap = 'round';
+        line(305, 259, 483, 427, '#8d7348', 13); line(306, 257, 482, 425, '#e2c78877', 3);
+        line(483, 256, 320, 429, '#79633d', 10); line(483, 254, 320, 427, '#d8bb7977', 2);
+        [[305, 259], [483, 427], [483, 256], [320, 429]].forEach(([x, y]) => bolt(x, y, 5));
+        ctx.restore();
+        circle(CX, CY, 169, null, '#e2c68866', 2);
+
+        for (let i = 0; i < 60; i++) {
+          const a = i * TAU / 60 - Math.PI / 2;
+          const major = i % 5 === 0;
+          const inner = major ? 229 : 239;
+          const outer = 247;
+          line(CX + Math.cos(a) * inner, CY + Math.sin(a) * inner,
+            CX + Math.cos(a) * outer, CY + Math.sin(a) * outer,
+            major ? '#53452e' : '#887653', major ? 2.2 : 1);
+        }
+        const numerals = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#3e3d30'; ctx.font = 'bold 24px Georgia, serif';
+        for (let i = 0; i < 12; i++) {
+          const a = i * TAU / 12 - Math.PI / 2;
+          ctx.fillText(numerals[i], CX + Math.cos(a) * 203, CY + Math.sin(a) * 203 + 1);
+        }
+        ctx.fillStyle = '#ae9258'; ctx.font = '10px Arial, sans-serif';
+        ctx.letterSpacing = '3px';
+        ctx.fillText('AUTOMATIC', CX, CY - 125);
+        ctx.fillText('EST. MMXXVI', CX, CY + 132);
+        ctx.letterSpacing = '0px';
+        for (let i = 0; i < 12; i++) {
+          const a = i * TAU / 12;
+          bolt(CX + Math.cos(a) * (R + 15), CY + Math.sin(a) * (R + 15), 3.5);
+        }
+      }
+
+      function hand(angle, length, width, color, accent) {
+        ctx.save(); ctx.translate(CX, CY); ctx.rotate(angle);
+        ctx.shadowColor = '#030708'; ctx.shadowBlur = 7; ctx.shadowOffsetX = 3;
+        ctx.beginPath();
+        ctx.moveTo(-width * .55, 22);
+        ctx.lineTo(-width, -length * .26);
+        ctx.lineTo(-width * .62, -length * .63);
+        ctx.lineTo(0, -length);
+        ctx.lineTo(width * .62, -length * .63);
+        ctx.lineTo(width, -length * .26);
+        ctx.lineTo(width * .55, 22);
+        ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+        ctx.shadowBlur = 0; ctx.shadowOffsetX = 0;
+        line(0, -length * .9, 0, -length * .18, accent, 1.5);
+        ctx.restore();
+      }
+
+      function hands(now) {
+        const seconds = now.getSeconds() + now.getMilliseconds() / 1000;
+        const minutes = now.getMinutes() + seconds / 60;
+        const hours = now.getHours() % 12 + minutes / 60;
+        hand(hours * TAU / 12, 112, 11, '#e8cf91', '#59452c');
+        hand(minutes * TAU / 60, 152, 7, '#e3c17d', '#5c4930');
+        ctx.save(); ctx.translate(CX, CY); ctx.rotate(seconds * TAU / 60);
+        ctx.shadowColor = '#030708'; ctx.shadowBlur = 5;
+        line(0, 37, 0, -161, '#b86f4b', 2.5);
+        ctx.beginPath(); ctx.moveTo(-6, -140); ctx.lineTo(0, -158); ctx.lineTo(6, -140); ctx.closePath();
+        ctx.fillStyle = '#d8895e'; ctx.fill(); ctx.restore();
+        circle(CX, CY, 13, '#3e321f', '#e7c987', 3);
+        circle(CX, CY, 5, '#dfc07d');
+      }
+
+      function draw(now) {
+        ctx.clearRect(0, 0, W, H);
+        const elapsed = now.getTime() / 1000;
+        const motion = reducedMotion.matches ? 0 : elapsed;
+
+        // Floating outer wheels and their pivots sit behind the main dial.
+        gear(163, 300, 66, 21, -motion * .17, 'steel');
+        gear(634, 275, 76, 24, motion * .14, 'gold');
+        gear(168, 449, 39, 15, motion * .32, 'gold');
+        gear(635, 463, 47, 16, -motion * .25, 'steel');
+        casework();
+        pendulum(motion);
+        face(motion);
+        hands(now);
+      }
+
+      function frame() {
+        const now = new Date();
+        draw(now);
+        if (now.getSeconds() !== lastSecond) {
+          lastSecond = now.getSeconds();
+          timeLabel.textContent = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(now);
+          dateLabel.textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(now);
+        }
+        requestAnimationFrame(frame);
+      }
+
+      new ResizeObserver(resize).observe(canvas);
+      resize();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
